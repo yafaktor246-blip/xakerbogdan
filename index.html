@@ -1,927 +1,1087 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ghost://terminal</title>
-<style>
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0; height: 100%; width: 100%;
-    background: #000; overflow: hidden;
-    font-family: 'Consolas', 'Courier New', monospace;
-    color: #00ff88;
-    user-select: none;
-  }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Моя Игра</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background-color: #000000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            color: #ffffff;
+        }
 
-  #matrix { position: fixed; inset: 0; z-index: 0; display: block; }
+        /* --- ЭКРАН 1: КНОПКА СТАРТА --- */
+        #start-btn {
+            background: transparent;
+            color: #ffffff;
+            border: 2px solid #ffffff;
+            padding: 20px 50px;
+            font-size: clamp(20px, 4vw, 30px);
+            font-family: inherit;
+            letter-spacing: 0.2em;
+            cursor: pointer;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px #ffffff;
+            box-shadow: 0 0 20px #ffffff, inset 0 0 20px #ffffff;
+            transition: all 0.3s ease;
+            animation: pulse 2s infinite;
+            z-index: 10;
+        }
 
-  #terminal {
-    position: fixed; inset: 0; z-index: 1;
-    padding: 22px 30px;
-    font-size: 15px; line-height: 1.45;
-    white-space: pre; overflow-y: auto; overflow-x: hidden;
-    text-shadow: 0 0 6px rgba(0, 255, 120, 0.5);
-    background: transparent;
-    transition: background 0.9s ease;
-    scrollbar-width: none;
-  }
-  #terminal::-webkit-scrollbar { display: none; }
-  #terminal.solid { background: rgba(0, 0, 0, 0.74); }
+        #start-btn:hover {
+            background: #ffffff;
+            color: #000000;
+            text-shadow: none;
+            box-shadow: 0 0 40px #ffffff, inset 0 0 40px #ffffff;
+            animation: none;
+        }
 
-  .dim    { color: #0b8b56; text-shadow: none; }
-  .yellow { color: #ffe066; text-shadow: 0 0 7px rgba(255, 220, 80, 0.6); }
-  .cyan   { color: #66e0ff; text-shadow: 0 0 7px rgba(100, 220, 255, 0.6); }
-  .red    { color: #ff5566; text-shadow: 0 0 7px rgba(255, 80, 100, 0.6); }
-  .bright { color: #b6ffdd; text-shadow: 0 0 10px rgba(180, 255, 220, 0.9); }
-  pre { margin: 0; font-family: inherit; }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px #ffffff, inset 0 0 10px #ffffff; }
+            50% { box-shadow: 0 0 30px #ffffff, inset 0 0 30px #ffffff; }
+            100% { box-shadow: 0 0 10px #ffffff, inset 0 0 10px #ffffff; }
+        }
 
-  #warn {
-    position: fixed; bottom: 8px; left: 14px; z-index: 2;
-    color: #5a1a1a; font-size: 11px; letter-spacing: 1.5px;
-    text-shadow: none; pointer-events: none;
-  }
+        /* --- ЭКРАН 2: ЗНАКОМСТВО --- */
+        #scene-intro {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0; left: 0;
+            transition: opacity 2s ease;
+        }
 
-  /* ---- СВОЙ КОД ---- */
-  #custom-code-btn {
-    position: fixed; bottom: 8px; right: 14px; z-index: 30;
-    color: #0b8b56; font-size: 11px; letter-spacing: 1.5px;
-    cursor: pointer; padding: 3px 8px;
-    transition: all 0.2s; border: 1px solid transparent;
-  }
-  #custom-code-btn:hover {
-    color: #00ff88; text-shadow: 0 0 10px #00ff88; border-color: #00ff88;
-  }
+        #silhouette {
+            opacity: 0;
+            transition: opacity 5s ease-in-out;
+            margin-bottom: 40px;
+            filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.3));
+        }
 
-  /* ---- стартовый экран ---- */
-  #start {
-    position: fixed; inset: 0; z-index: 20;
-    display: flex; align-items: center; justify-content: center;
-    flex-direction: column;
-    background: rgba(0, 0, 0, 0.55);
-    cursor: pointer; transition: opacity 0.4s ease;
-  }
-  #start.hide { opacity: 0; pointer-events: none; }
-  .start-btn {
-    font-size: clamp(28px, 4vw, 44px); color: #00ff88;
-    letter-spacing: 0.3em; padding: 22px 48px;
-    border: 2px solid #00ff88; text-shadow: 0 0 14px #00ff88;
-    box-shadow: 0 0 24px rgba(0, 255, 120, 0.4), inset 0 0 24px rgba(0, 255, 120, 0.15);
-    animation: pulseBtn 1.6s ease-in-out infinite;
-  }
-  .start-hint { margin-top: 22px; font-size: 13px; color: #66e0ff; letter-spacing: 0.4em; opacity: 0.7; }
-  @keyframes pulseBtn {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.04); box-shadow: 0 0 40px rgba(0, 255, 120, 0.7), inset 0 0 30px rgba(0, 255, 120, 0.25); }
-  }
+        #silhouette.show { opacity: 1; }
 
-  /* ---- УСПЕШНО ---- */
-  #big-success {
-    position: fixed; inset: 0; z-index: 10;
-    display: none; align-items: center; justify-content: center;
-    flex-direction: column;
-    background: rgba(0, 0, 0, 0.82);
-    pointer-events: none; text-align: center; padding: 30px;
-  }
-  #big-success.show { display: flex; animation: fadeIn 0.7s ease; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        #silhouette.jump {
+            animation: jumpAnim 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
 
-  .success-text {
-    position: relative;
-    font-size: clamp(64px, 15vw, 220px);
-    font-weight: 900; color: #00ff88;
-    letter-spacing: 0.08em; line-height: 1;
-    text-shadow: 0 0 20px #00ff88, 0 0 44px #00ff88, 0 0 80px #00cc66, 0 0 140px #009944;
-    animation: successPulse 1.6s ease-in-out infinite;
-  }
-  @keyframes successPulse {
-    0%, 100% { transform: scale(1); filter: brightness(1); }
-    50% { transform: scale(1.035); filter: brightness(1.25); }
-  }
-  .success-text::before, .success-text::after {
-    content: attr(data-text); position: absolute; inset: 0;
-    opacity: 0.08; pointer-events: none;
-  }
-  .success-text::before { color: #ff0055; animation: glitch1 3s infinite; }
-  .success-text::after  { color: #00aaff; animation: glitch2 2.4s infinite; }
-  @keyframes glitch1 {
-    0%, 90%, 100% { transform: translate(0,0); }
-    92% { transform: translate(-3px, 1px); }
-    94% { transform: translate(2px, -2px); }
-    96% { transform: translate(-2px, -1px); }
-  }
-  @keyframes glitch2 {
-    0%, 88%, 100% { transform: translate(0,0); }
-    90% { transform: translate(3px, 2px); }
-    93% { transform: translate(-2px, 1px); }
-    95% { transform: translate(1px, -1px); }
-  }
-  .success-sub {
-    font-size: clamp(14px, 2vw, 22px); color: #66e0ff;
-    letter-spacing: 0.55em; margin-top: 26px;
-    text-shadow: 0 0 12px #66e0ff;
-    animation: fadeIn 1.2s ease 0.4s both;
-  }
-  .success-disclaimer {
-    font-size: clamp(10px, 1.1vw, 13px); color: #0b8b56;
-    letter-spacing: 0.3em; margin-top: 40px; line-height: 1.7;
-    text-shadow: none; animation: fadeIn 1.4s ease 1.2s both;
-  }
-  .success-disclaimer b { color: #ff5566; font-weight: 700; }
+        @keyframes jumpAnim {
+            0% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-60px) scale(1.1); } 
+            100% { transform: translateY(0) scale(1); }
+        }
 
-  /* ---- модалки ---- */
-  #pwd-modal, #name-modal {
-    position: fixed; inset: 0;
-    display: none; align-items: center; justify-content: center;
-    background: rgba(0, 0, 0, 0.88);
-  }
-  #pwd-modal { z-index: 40; }
-  #name-modal { z-index: 42; }
-  #pwd-modal.show, #name-modal.show { display: flex; animation: fadeIn 0.25s ease; }
+        #dialogue-box-intro {
+            font-size: clamp(16px, 3vw, 24px);
+            letter-spacing: 0.1em;
+            min-height: 40px;
+            text-align: center;
+            padding: 0 20px;
+            margin-bottom: 20px;
+            color: #fff;
+        }
 
-  .pwd-box {
-    border: 2px solid #00ff88; padding: 32px 44px;
-    background: rgba(0, 0, 0, 0.9);
-    box-shadow: 0 0 30px rgba(0, 255, 120, 0.4), inset 0 0 20px rgba(0, 255, 120, 0.1);
-    text-align: center; min-width: 340px;
-  }
-  .pwd-box.shake { animation: shake 0.4s ease; }
-  @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-8px); }
-    40% { transform: translateX(8px); }
-    60% { transform: translateX(-5px); }
-    80% { transform: translateX(5px); }
-  }
-  .pwd-title {
-    color: #ff5566; letter-spacing: 0.25em; font-size: 12px;
-    margin-bottom: 14px; text-shadow: 0 0 8px rgba(255, 80, 100, 0.6);
-  }
-  .pwd-sub {
-    color: #00ff88; font-size: 14px; letter-spacing: 0.15em; margin-bottom: 20px;
-  }
-  #pwd-input, #name-input {
-    background: #000; border: 1px solid #00ff88; color: #00ff88;
-    padding: 10px 14px; font-family: inherit; text-align: center;
-    width: 100%; outline: none; letter-spacing: 0.5em; font-size: 22px;
-  }
-  #name-input { letter-spacing: 0.05em; font-size: 18px; }
-  #name-input::placeholder { color: #0b8b56; letter-spacing: 0.05em; }
-  #pwd-input:focus, #name-input:focus { box-shadow: 0 0 14px rgba(0, 255, 120, 0.55); }
-  .pwd-hint {
-    color: #0b8b56; font-size: 11px; letter-spacing: 0.2em; margin-top: 16px;
-  }
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 1.2em;
+            background-color: #ffffff;
+            vertical-align: bottom;
+            animation: blink 1s step-end infinite;
+        }
 
-  /* ---- просмотр кода ---- */
-  #code-view {
-    position: fixed; inset: 0; z-index: 35;
-    display: none; flex-direction: column; background: #000;
-  }
-  #code-view.show { display: flex; animation: fadeIn 0.3s ease; }
-  .code-header {
-    padding: 10px 22px; background: #081a10; color: #00ff88;
-    font-size: 13px; letter-spacing: 0.15em;
-    border-bottom: 1px solid #00ff88;
-    text-shadow: 0 0 6px rgba(0, 255, 120, 0.5);
-  }
-  #code-output {
-    flex: 1; padding: 20px 30px; margin: 0;
-    font-size: 14px; line-height: 1.55;
-    white-space: pre; overflow: auto;
-    color: #b6ffdd; text-shadow: 0 0 4px rgba(180, 255, 220, 0.4);
-    scrollbar-width: thin; scrollbar-color: #0b8b56 #000;
-  }
-  #code-output::-webkit-scrollbar { width: 8px; }
-  #code-output::-webkit-scrollbar-thumb { background: #0b8b56; }
-  #code-output::-webkit-scrollbar-track { background: #000; }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
 
-  #upload-btn {
-    display: none; align-self: center;
-    margin: 20px; padding: 16px 52px;
-    background: #2a0000; color: #ff5566;
-    border: 2px solid #ff5566;
-    font-family: inherit; font-size: 20px; letter-spacing: 0.4em;
-    cursor: pointer; text-shadow: 0 0 12px #ff5566;
-    box-shadow: 0 0 20px rgba(255, 80, 100, 0.45), inset 0 0 15px rgba(255, 80, 100, 0.15);
-    transition: all 0.2s ease;
-  }
-  #upload-btn.show { display: block; animation: uploadIn 0.5s ease; }
-  @keyframes uploadIn {
-    from { opacity: 0; transform: translateY(20px) scale(0.9); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  #upload-btn:hover:not(:disabled) {
-    background: #3a0000;
-    box-shadow: 0 0 38px rgba(255, 80, 100, 0.85), inset 0 0 22px rgba(255, 80, 100, 0.3);
-  }
-  #upload-btn:disabled { cursor: default; }
+        #choices {
+            display: none; 
+            gap: 30px;
+        }
 
-  /* ---- ВЗЛОМАН ---- */
-  #hacked-panel {
-    position: fixed; inset: 0; z-index: 32;
-    display: none; flex-direction: column;
-    align-items: center; justify-content: center;
-    background: rgba(0, 0, 0, 0.92);
-    padding: 30px; overflow-y: auto; text-align: center;
-  }
-  #hacked-panel.show { display: flex; animation: fadeIn 0.5s ease; }
+        .choice-btn {
+            background: transparent;
+            color: #ffffff;
+            border: 2px solid #ffffff;
+            padding: 10px 40px;
+            font-size: clamp(16px, 2vw, 20px);
+            font-family: inherit;
+            letter-spacing: 0.1em;
+            pointer-events: none; 
+            user-select: none;
+        }
 
-  .hacked-title {
-    position: relative;
-    font-size: clamp(56px, 12vw, 180px);
-    font-weight: 900; color: #ff2233;
-    letter-spacing: 0.1em; line-height: 1;
-    text-shadow: 0 0 20px #ff2233, 0 0 44px #ff2233, 0 0 80px #cc0022, 0 0 140px #990011;
-    animation: hackedPulse 1.4s ease-in-out infinite;
-  }
-  @keyframes hackedPulse {
-    0%, 100% { transform: scale(1); filter: brightness(1); }
-    50% { transform: scale(1.04); filter: brightness(1.3); }
-  }
-  .hacked-title::before, .hacked-title::after {
-    content: attr(data-text); position: absolute; inset: 0;
-    opacity: 0.1; pointer-events: none;
-  }
-  .hacked-title::before { color: #ffaa00; animation: glitch1 3s infinite; }
-  .hacked-title::after  { color: #00aaff; animation: glitch2 2.4s infinite; }
+        /* --- ЭКРАН 3: СЕРАЯ КОМНАТА ДОПРОСА --- */
+        #scene-room {
+            display: none;
+            opacity: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0; left: 0;
+            transition: opacity 2.5s ease;
+            background: #5a5a5a;
+            background-image: linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
 
-  .hacked-name {
-    font-size: clamp(20px, 3vw, 36px); color: #00ff88;
-    letter-spacing: 0.15em; margin-top: 8px;
-    text-shadow: 0 0 12px #00ff88;
-    animation: fadeIn 0.8s ease 0.3s both;
-  }
+        #emerging-board {
+            position: absolute;
+            bottom: 40%;
+            width: 300px;
+            height: 200px;
+            background: #111; 
+            border: 15px solid #333; 
+            border-radius: 15px;
+            z-index: 1; 
+            opacity: 0;
+            transform: translateY(100px) scale(0.8);
+            transition: all 2s cubic-bezier(0.25, 1, 0.5, 1);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(0, 255, 255, 0.2) inset;
+        }
+        
+        #emerging-board::after {
+            content: '';
+            position: absolute;
+            bottom: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 30px;
+            background: #222;
+            border-radius: 0 0 10px 10px;
+        }
 
-  .hacked-table {
-    margin-top: 32px; border: 1px solid #ff5566;
-    background: rgba(20, 0, 0, 0.7);
-    padding: 18px 28px;
-    font-size: clamp(12px, 1.4vw, 16px);
-    text-align: left; min-width: 340px;
-    animation: fadeIn 0.9s ease 0.5s both;
-    box-shadow: 0 0 24px rgba(255, 80, 100, 0.3);
-  }
-  .hacked-row {
-    display: flex; justify-content: space-between;
-    padding: 6px 0; gap: 40px;
-    border-bottom: 1px dashed rgba(255, 85, 102, 0.25);
-    word-break: break-word;
-  }
-  .hacked-row:last-child { border-bottom: none; }
-  .hacked-row .k { color: #ff8899; flex-shrink: 0; }
-  .hacked-row .v { color: #00ff88; font-weight: 600; text-align: right; }
+        #emerging-board.show {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
 
-  .hacked-disclaimer {
-    margin-top: 26px; color: #0b8b56;
-    font-size: 11px; letter-spacing: 0.3em; line-height: 1.7;
-    animation: fadeIn 1.2s ease 1s both;
-  }
-  .hacked-disclaimer b { color: #ff5566; }
-</style>
+        #seated-figure {
+            position: absolute;
+            bottom: 28%;
+            width: 220px;
+            height: 330px;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.9));
+            z-index: 2; 
+            transition: opacity 1.5s ease;
+        }
+
+        #table {
+            width: 120%;
+            height: 25%;
+            background: linear-gradient(to bottom, #d4a373 0%, #b5835a 10%, #8b5a2b 100%);
+            border-top: 5px solid #f0cba7;
+            position: absolute;
+            bottom: -2%;
+            z-index: 3;
+            transform: perspective(600px) rotateX(15deg);
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.6);
+            transition: opacity 1.5s ease;
+        }
+        
+        #table::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 10%;
+            width: 80%; height: 20px;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+            border-radius: 50%;
+            transform: translateY(-50%);
+        }
+
+        #chair {
+            position: absolute;
+            bottom: -2%;
+            width: 80%;
+            height: 120px;
+            border: 15px solid #6b4226;
+            border-top: none;
+            border-radius: 0 0 20px 20px;
+            background: transparent;
+            z-index: 4;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            transform: perspective(600px) rotateX(15deg);
+            pointer-events: none;
+            transition: opacity 1.5s ease;
+        }
+
+        .smoke {
+            position: absolute;
+            top: 21%;
+            left: 50%;
+            width: 35px;
+            height: 35px;
+            background: radial-gradient(circle, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            opacity: 0;
+            z-index: 4;
+            filter: blur(1px);
+        }
+
+        @keyframes smokeRise {
+            0% { transform: translate(-50%, 0) scale(0.6) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.7; }
+            50% { transform: translate(-45%, -100px) scale(2) rotate(15deg); opacity: 0.4; }
+            100% { transform: translate(-55%, -280px) scale(4) rotate(-15deg); opacity: 0; }
+        }
+
+        #text-room {
+            position: absolute;
+            top: 10%;
+            width: 90%; 
+            text-align: center;
+            font-size: clamp(16px, 3vw, 24px);
+            letter-spacing: 0.1em;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 1s ease;
+            text-shadow: 2px 2px 4px #000, -2px -2px 4px #000;
+            color: #fff;
+            white-space: pre-wrap; 
+        }
+
+        /* --- ЭКРАН 4: РАБОЧИЙ СТОЛ КОМПЬЮТЕРА --- */
+        #desktop-interface {
+            display: none;
+            width: 100vw;
+            height: 100vh;
+            background-color: #3a6ea5; 
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 1s ease;
+            box-sizing: border-box;
+            padding: 30px;
+        }
+
+        #desktop-interface.show { opacity: 1; }
+
+        .desktop-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100px;
+            cursor: pointer;
+            margin-bottom: 30px;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background 0.2s;
+            user-select: none;
+        }
+
+        .desktop-icon:hover { background: rgba(255, 255, 255, 0.2); }
+
+        .folder-icon {
+            font-size: 60px;
+            line-height: 1;
+            margin-bottom: 5px;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
+        }
+
+        .skull-icon {
+            font-size: 65px;
+            line-height: 1;
+            margin-bottom: 5px;
+            filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.7)); 
+            transition: transform 0.2s;
+        }
+
+        .desktop-icon:hover .skull-icon { transform: scale(1.1); }
+
+        .icon-label {
+            color: #fff;
+            font-size: 14px;
+            text-align: center;
+            text-shadow: 1px 1px 2px #000;
+            word-wrap: break-word;
+            width: 100%;
+        }
+
+        .taskbar {
+            position: absolute;
+            bottom: 0; left: 0;
+            width: 100%;
+            height: 40px;
+            background: #c0c0c0; 
+            border-top: 2px solid #fff;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            box-sizing: border-box;
+            color: #000;
+            font-size: 14px;
+            z-index: 110;
+        }
+        
+        .taskbar-start {
+            background: #c0c0c0;
+            border: 2px solid;
+            border-color: #fff #000 #000 #fff; 
+            padding: 5px 15px;
+            margin-right: 15px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* --- МОДАЛЬНОЕ ОКНО (ПИСЬМО) --- */
+        #letter-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #letter-modal.show { display: flex; }
+
+        .letter-paper {
+            background: #f4e8c1; 
+            width: 90%;
+            max-width: 500px;
+            padding: 40px;
+            box-sizing: border-box;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 50px rgba(139, 90, 43, 0.3);
+            color: #222;
+            font-family: 'Times New Roman', Times, serif;
+            transform: rotate(-1deg);
+            transition: transform 0.3s;
+        }
+
+        .letter-paper:hover { transform: rotate(0deg) scale(1.02); }
+
+        .close-btn {
+            position: absolute;
+            top: 10px; right: 15px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #8b5a2b;
+            font-weight: bold;
+            font-family: sans-serif;
+            z-index: 10;
+        }
+
+        .close-btn:hover { color: #000; }
+
+        .photo-frame {
+            background: #fff;
+            padding: 10px 10px 40px 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+            width: 200px;
+            margin: 0 auto 30px auto;
+            transform: rotate(3deg);
+            position: relative;
+        }
+
+        .photo-frame::before {
+            content: '';
+            position: absolute;
+            top: -10px; left: 50%;
+            transform: translateX(-50%) rotate(-5deg);
+            width: 60px; height: 25px;
+            background: rgba(200, 200, 200, 0.5);
+            border: 1px solid rgba(150, 150, 150, 0.5);
+        }
+
+        .old-photo {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            filter: grayscale(100%) sepia(30%) contrast(150%) brightness(0.8);
+            background: #333;
+        }
+
+        .letter-text h3 {
+            margin: 0 0 15px 0;
+            font-size: 24px;
+            text-align: center;
+            text-decoration: underline;
+        }
+
+        .letter-text p {
+            font-size: 18px;
+            line-height: 1.5;
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+
+        .letter-text .highlight {
+            text-align: center;
+            font-weight: bold;
+            font-size: 20px;
+            color: #8b0000;
+            letter-spacing: 2px;
+        }
+
+        /* --- МОДАЛЬНОЕ ОКНО (ЗАДАНИЕ/ТЕСТ) --- */
+        #task-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 200;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #task-modal.show { display: flex; }
+
+        .task-window {
+            background: #c0c0c0;
+            border: 2px solid;
+            border-color: #fff #444 #444 #fff;
+            width: 90%;
+            max-width: 600px;
+            box-shadow: 5px 5px 20px rgba(0,0,0,0.8);
+            font-family: 'Tahoma', sans-serif;
+            color: #000;
+        }
+
+        .task-titlebar {
+            background: #000080; 
+            color: #fff;
+            padding: 5px 10px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-content { padding: 30px; }
+
+        .task-question {
+            font-size: 20px;
+            margin-bottom: 25px;
+            font-weight: bold;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .task-btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 15px;
+            font-size: 18px;
+            font-family: inherit;
+            background: #e0e0e0;
+            border: 2px solid;
+            border-color: #fff #444 #444 #fff;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.1s;
+        }
+
+        .task-btn:hover { background: #d0d0d0; }
+        .task-btn:active { border-color: #444 #fff #fff #444; background: #ccc; }
+
+        /* --- ЭФФЕКТ ВЫКЛЮЧЕНИЯ И ЗЛЫЕ ГЛАЗА --- */
+        #crt-overlay {
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #000; z-index: 999;
+            pointer-events: none; opacity: 0;
+            transition: all 0.3s ease-in;
+        }
+        #crt-overlay.active { opacity: 1; }
+
+        #anger-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #000; z-index: 1000;
+            justify-content: center; align-items: center;
+            flex-direction: column;
+        }
+        #anger-overlay.show { display: flex; }
+
+        .evil-eyes {
+            display: flex; gap: 60px;
+            animation: eyesAppear 0.5s ease-out forwards;
+        }
+
+        .eye {
+            width: 80px; height: 30px;
+            background: #fff; border-radius: 50%;
+            box-shadow: 0 0 30px #ff0000, 0 0 60px #ff0000, inset 0 0 15px #ff0000;
+            position: relative;
+        }
+
+        .eye::after {
+            content: '';
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px; height: 10px;
+            background: #000; border-radius: 50%;
+        }
+
+        @keyframes eyesAppear {
+            0% { opacity: 0; transform: scale(0.5); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* --- ЭКРАН ПРОИГРЫША (ТРЕЩИНЫ) --- */
+        #game-over-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 2000;
+            background: #000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        #game-over-overlay.show { display: flex; }
+
+        .crack-effect {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" preserveAspectRatio="none"><path d="M500,500 L100,100 M500,500 L900,150 M500,500 L800,900 M500,500 L150,800 M500,500 L300,50 M500,500 L700,950 M500,500 L50,400 M500,500 L950,600" stroke="rgba(255,255,255,0.6)" stroke-width="2" fill="none"/><path d="M500,500 L150,300 M500,500 L850,400 M500,500 L400,850 M500,500 L600,100" stroke="rgba(200,200,200,0.4)" stroke-width="1" fill="none"/></svg>');
+            background-size: cover;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .crack-effect.animate {
+            animation: crackAnim 1s forwards;
+        }
+
+        @keyframes crackAnim {
+            0% { opacity: 0; transform: scale(1.5); }
+            20% { opacity: 1; transform: scale(1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .game-over-text {
+            color: #ff0000;
+            font-size: clamp(40px, 8vw, 100px);
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-shadow: 0 0 20px #ff0000;
+            opacity: 0;
+            margin-bottom: 20px;
+            z-index: 2;
+        }
+
+        .game-over-text.animate {
+            animation: fadeInText 2s forwards 1s; 
+        }
+
+        .game-over-subtext {
+            color: #666;
+            font-size: clamp(12px, 1.5vw, 16px);
+            opacity: 0;
+            z-index: 2;
+        }
+
+        .game-over-subtext.animate {
+            animation: fadeInText 2s forwards 2.5s;
+        }
+
+        @keyframes fadeInText {
+            to { opacity: 1; }
+        }
+
+        /* --- СЕКРЕТНАЯ ПАПКА (ТЕРМИНАЛ И КЛАВИАТУРА) --- */
+        #skull-modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background: #000;
+            z-index: 300;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+        }
+
+        #skull-modal.show { display: flex; }
+
+        #secret-terminal {
+            width: 80%;
+            max-width: 800px;
+            height: 40vh;
+            background: #000;
+            color: #00ff00; 
+            font-size: 18px;
+            padding: 20px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-bottom: 30px;
+            text-shadow: 0 0 5px #00ff00;
+            box-sizing: border-box;
+        }
+
+        #fake-keyboard {
+            display: none; 
+            flex-direction: column;
+            gap: 8px;
+            background: #111;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #333;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            width: 90%;
+            max-width: 700px;
+        }
+
+        #fake-keyboard.show { display: flex; }
+
+        .kbd-row {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .key {
+            background: #222;
+            color: #888;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 10px 0;
+            width: 40px;
+            text-align: center;
+            font-size: 14px;
+            box-shadow: 0 3px 0 #000;
+            transition: all 0.1s;
+        }
+
+        .key.space { width: 200px; }
+
+        .key.active {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 10px #00ff00;
+            transform: translateY(3px);
+            border-color: #00ff00;
+        }
+
+        #secret-terminal::-webkit-scrollbar { width: 8px; }
+        #secret-terminal::-webkit-scrollbar-thumb { background: #00ff00; }
+
+    </style>
 </head>
 <body>
 
-<canvas id="matrix"></canvas>
-<div id="terminal"></div>
-<div id="warn">// ИМИТАЦИЯ. ЭТО НЕ ВЗЛОМ. ПРОСТО ТЕКСТ.</div>
-<div id="custom-code-btn">▸ СВОЙ КОД</div>
+    <button id="start-btn">НАЧАТЬ ИГРУ</button>
 
-<div id="start">
-  <div class="start-btn">▶ НАЧАТЬ</div>
-  <div class="start-hint">клик включит звук</div>
-</div>
+    <div id="scene-intro">
+        <svg id="silhouette" width="200" height="300" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="100" cy="60" r="45" fill="#000000" stroke="#ffffff" stroke-width="2"/>
+            <path d="M 20 300 C 20 150, 60 120, 100 120 C 140 120, 180 150, 180 300 Z" fill="#000000" stroke="#ffffff" stroke-width="2"/>
+        </svg>
+        <div id="dialogue-box-intro">
+            <span id="text-intro"></span><span class="cursor" id="cursor-intro" style="display:none;"></span>
+        </div>
+        <div id="choices">
+            <button class="choice-btn">ДА</button>
+            <button class="choice-btn">НЕТ</button>
+        </div>
+    </div>
 
-<div id="big-success">
-  <div class="success-text" data-text="УСПЕШНО">УСПЕШНО</div>
-  <div class="success-sub">ВЗЛОМ ЗАВЕРШЁН</div>
-  <div class="success-disclaimer">
-    // это была имитация. ни одного реального взлома.<br>
-    // <b>нажми R для повтора</b>
-  </div>
-</div>
+    <div id="scene-room">
+        <div id="text-room"></div>
+        <div id="emerging-board"></div>
+        <svg id="seated-figure" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="100" cy="60" r="45" fill="#050505" />
+            <path d="M 20 300 C 20 150, 60 120, 100 120 C 140 120, 180 150, 180 300 Z" fill="#050505" />
+        </svg>
+        <div id="smoke-container"></div>
+        <div id="chair"></div>
+        <div id="table"></div>
+    </div>
 
-<div id="pwd-modal">
-  <div class="pwd-box" id="pwd-box">
-    <div class="pwd-title">// AUTHORIZATION REQUIRED</div>
-    <div class="pwd-sub">введите пароль</div>
-    <input id="pwd-input" type="password" autocomplete="off" spellcheck="false" maxlength="16">
-    <div class="pwd-hint">ENTER — ПОДТВЕРДИТЬ</div>
-  </div>
-</div>
+    <div id="desktop-interface">
+        
+        <div class="desktop-icon" onclick="openFolder('history')">
+            <div class="folder-icon">📁</div>
+            <div class="icon-label">История нашей игры</div>
+        </div>
 
-<div id="code-view">
-  <div class="code-header">// custom_payload.py — author: &lt;hidden&gt;</div>
-  <pre id="code-output"></pre>
-  <button id="upload-btn">ЗАГРУЗИТЬ</button>
-</div>
+        <div class="desktop-icon" onclick="openFolder('task')">
+            <div class="folder-icon">📁</div>
+            <div class="icon-label">Задание</div>
+        </div>
 
-<div id="name-modal">
-  <div class="pwd-box" id="name-box">
-    <div class="pwd-title">// TARGET SELECTION</div>
-    <div class="pwd-sub">введите имя цели</div>
-    <input id="name-input" type="text" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Иванов Иван">
-    <div class="pwd-hint">ENTER — НАЧАТЬ ВЗЛОМ</div>
-  </div>
-</div>
+        <div class="desktop-icon" onclick="openFolder('skull')">
+            <div class="skull-icon">💀</div>
+            <div class="icon-label">????</div>
+        </div>
 
-<div id="hacked-panel">
-  <div class="hacked-title" data-text="ВЗЛОМАН">ВЗЛОМАН</div>
-  <div class="hacked-name" id="hacked-name">—</div>
-  <div class="hacked-table" id="hacked-table"></div>
-  <div class="hacked-disclaimer">
-    // это имитация. данные сгенерированы случайно.<br>
-    // <b>нажми R для повтора</b>
-  </div>
-</div>
+        <div class="taskbar">
+            <div class="taskbar-start">ПУСК</div>
+        </div>
+    </div>
 
-<script>
-(() => {
-  "use strict";
+    <div id="letter-modal" onclick="closeLetter(event)">
+        <div class="letter-paper" onclick="event.stopPropagation()">
+            <div class="close-btn" onclick="closeLetter(event)">X</div>
+            <div class="photo-frame">
+                <img src="https://images.unsplash.com/photo-1542350599-2d0912e376a1?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" 
+                     onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'200\' height=\'250\'><rect width=\'200\' height=\'250\' fill=\'%23333\'/><text x=\'100\' y=\'125\' fill=\'%23888\' font-size=\'20\' text-anchor=\'middle\' font-family=\'sans-serif\'>ФОТО УТЕРЯНО</text></svg>'"
+                     alt="Старое фото" class="old-photo">
+            </div>
+            <div class="letter-text">
+                <h3>1987 год.</h3>
+                <p>Новая засекреченная база у которой даже нет имени в которой проводится игра на выживание.</p>
+                <p class="highlight">УДАЧНОЙ ИГРЫ!!!</p>
+            </div>
+        </div>
+    </div>
 
-  const term   = document.getElementById('terminal');
-  const canvas = document.getElementById('matrix');
-  const ctx    = canvas.getContext('2d', { alpha: false });
+    <div id="task-modal">
+        <div class="task-window">
+            <div class="task-titlebar">
+                <span>TEST.EXE</span>
+                <span style="cursor:pointer;" onclick="document.getElementById('task-modal').classList.remove('show')">X</span>
+            </div>
+            <div class="task-content" id="task-content">
+            </div>
+        </div>
+    </div>
 
-  /* ============ УТИЛИТЫ ============ */
+    <div id="skull-modal">
+        <div id="secret-terminal"></div>
+        
+        <div id="fake-keyboard">
+            <div class="kbd-row">
+                <div class="key">й</div><div class="key">ц</div><div class="key">у</div><div class="key">к</div><div class="key">е</div><div class="key">н</div><div class="key">г</div><div class="key">ш</div><div class="key">щ</div><div class="key">з</div><div class="key">х</div><div class="key">ъ</div>
+            </div>
+            <div class="kbd-row">
+                <div class="key">ф</div><div class="key">ы</div><div class="key">в</div><div class="key">а</div><div class="key">п</div><div class="key">р</div><div class="key">о</div><div class="key">л</div><div class="key">д</div><div class="key">ж</div><div class="key">э</div>
+            </div>
+            <div class="kbd-row">
+                <div class="key">я</div><div class="key">ч</div><div class="key">с</div><div class="key">м</div><div class="key">и</div><div class="key">т</div><div class="key">ь</div><div class="key">б</div><div class="key">ю</div>
+            </div>
+            <div class="kbd-row">
+                <div class="key space">пробел</div>
+            </div>
+        </div>
+    </div>
 
-  const sleep   = (ms) => new Promise(r => setTimeout(r, ms));
-  const rndInt  = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
-  const pick    = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  const randHex = (n) => Array.from({ length: n },
-                         () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
-  const randIp  = () => `${rndInt(10,223)}.${rndInt(0,255)}.${rndInt(0,255)}.${rndInt(1,254)}`;
-  const scrollBottom = () => { term.scrollTop = term.scrollHeight; };
+    <div id="crt-overlay"></div>
 
-  function line(...parts) {
-    const div = document.createElement('div');
-    for (const p of parts) {
-      if (p instanceof Node) div.appendChild(p);
-      else div.appendChild(document.createTextNode(p));
-    }
-    term.appendChild(div);
-    scrollBottom();
-    return div;
-  }
+    <div id="anger-overlay">
+        <div class="evil-eyes">
+            <div class="eye"></div>
+            <div class="eye"></div>
+        </div>
+    </div>
 
-  function el(text, cls) {
-    const s = document.createElement('span');
-    if (cls) s.className = cls;
-    s.textContent = text;
-    return s;
-  }
+    <div id="game-over-overlay">
+        <div class="crack-effect" id="crack-effect"></div>
+        <div class="game-over-text" id="game-over-text">ИГРА ПРОИГРАНА</div>
+        <div class="game-over-subtext" id="game-over-subtext">твоя судьба скажу честно не очень</div>
+    </div>
 
-  /* ============ ЗВУК ============ */
+    <script>
+        const startBtn = document.getElementById('start-btn');
+        const sceneIntro = document.getElementById('scene-intro');
+        const silhouette = document.getElementById('silhouette');
+        const textIntro = document.getElementById('text-intro');
+        const cursorIntro = document.getElementById('cursor-intro');
+        const choices = document.getElementById('choices');
+        
+        const sceneRoom = document.getElementById('scene-room');
+        const textRoom = document.getElementById('text-room');
+        const smokeContainer = document.getElementById('smoke-container');
+        
+        const emergingBoard = document.getElementById('emerging-board');
+        const desktopInterface = document.getElementById('desktop-interface');
+        const seatedFigure = document.getElementById('seated-figure');
+        const table = document.getElementById('table');
+        const chair = document.getElementById('chair');
+        
+        const letterModal = document.getElementById('letter-modal');
+        const taskModal = document.getElementById('task-modal');
+        const taskContent = document.getElementById('task-content');
+        
+        const skullModal = document.getElementById('skull-modal');
+        const secretTerminal = document.getElementById('secret-terminal');
+        const fakeKeyboard = document.getElementById('fake-keyboard');
 
-  const SFX = {
-    ctx: null, master: null, enabled: false,
+        const questions = [
+            {
+                q: "КАК ЗВАЛИ ПЕРВУЮ НАШУ УЧИТЕЛЬНИЦУ?",
+                options: ["Татьяна Николаевна", "Татьяна Леонидовна"],
+                correct: 1
+            },
+            {
+                q: "ВЕРНО ЛИ ЧТО ЖЕНСКИЙ МОЗГ РАЗВИТ ЛУЧШЕ ЧЕМ МУЖСКОЙ?",
+                options: ["Да", "Нет"],
+                correct: 1
+            },
+            {
+                q: "УВАЖАЕШЬ ЛИ ТЫ ПЧЕЛОК?",
+                options: ["Да", "Нет"],
+                correct: 0
+            }
+        ];
 
-    init() {
-      if (this.ctx) return;
-      try {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AC();
-        this.master = this.ctx.createGain();
-        this.master.gain.value = 0.55;
-        this.master.connect(this.ctx.destination);
-        this.enabled = true;
-      } catch (e) { this.enabled = false; }
-    },
-    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+        let currentQuestionIndex = 0;
 
-    tone(freq, dur, { type = 'square', vol = 0.05, attack = 0.002, when = 0, slideTo = null } = {}) {
-      if (!this.enabled) return;
-      const t0 = this.ctx.currentTime + when;
-      const osc = this.ctx.createOscillator();
-      const g   = this.ctx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, t0);
-      if (slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(slideTo, 1), t0 + dur);
-      g.gain.setValueAtTime(0, t0);
-      g.gain.linearRampToValueAtTime(vol, t0 + attack);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      osc.connect(g); g.connect(this.master);
-      osc.start(t0); osc.stop(t0 + dur + 0.03);
-    },
-
-    noise(dur = 0.3, vol = 0.04, filterFreq = 2000) {
-      if (!this.enabled) return;
-      const t0 = this.ctx.currentTime;
-      const len = Math.floor(this.ctx.sampleRate * dur);
-      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-      const src = this.ctx.createBufferSource(); src.buffer = buf;
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'bandpass'; filter.frequency.value = filterFreq; filter.Q.value = 0.7;
-      const g = this.ctx.createGain();
-      g.gain.setValueAtTime(vol, t0);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      src.connect(filter); filter.connect(g); g.connect(this.master);
-      src.start(t0);
-    },
-
-    click()        { this.tone(1700 + Math.random() * 800, 0.009, { type: 'square', vol: 0.015 }); },
-    blip()         { this.tone(880 + Math.random() * 200, 0.06, { type: 'triangle', vol: 0.045 }); },
-    progressTick() { this.tone(500 + Math.random() * 200, 0.025, { type: 'square', vol: 0.02, slideTo: 900 }); },
-    complete()     { this.tone(1200, 0.07, { type: 'triangle', vol: 0.05 });
-                     this.tone(1700, 0.09, { type: 'triangle', vol: 0.045, when: 0.08 }); },
-    brute()        { this.tone(280 + Math.random() * 500, 0.045, { type: 'sawtooth', vol: 0.022, slideTo: 180 }); },
-
-    alarm(duration = 1.2) {
-      let t = 0;
-      while (t < duration) {
-        this.tone(880, 0.11, { type: 'square', vol: 0.045, when: t });
-        this.tone(660, 0.11, { type: 'square', vol: 0.045, when: t + 0.12 });
-        t += 0.26;
-      }
-    },
-    success() {
-      const notes = [523.25, 659.25, 783.99, 1046.5];
-      notes.forEach((f, i) => {
-        this.tone(f, 0.4, { type: 'triangle', vol: 0.07, when: i * 0.09 });
-        this.tone(f * 2, 0.25, { type: 'sine', vol: 0.025, when: i * 0.09 });
-      });
-      [1046.5, 1318.5, 1568.0, 2093.0].forEach(f => {
-        this.tone(f, 1.2, { type: 'sine', vol: 0.05, when: 0.45 });
-      });
-      this.tone(130.81, 0.5, { type: 'sine', vol: 0.08, when: 0.4 });
-    },
-    error() {
-      this.tone(220, 0.15, { type: 'sawtooth', vol: 0.08 });
-      this.tone(160, 0.25, { type: 'sawtooth', vol: 0.08, when: 0.13, slideTo: 60 });
-    },
-    breach() {
-      // зловещий аккорд для "ВЗЛОМАН"
-      this.tone(110, 1.5, { type: 'sawtooth', vol: 0.06 });
-      this.tone(138.6, 1.5, { type: 'sawtooth', vol: 0.045, when: 0.05 });
-      this.tone(164.8, 1.5, { type: 'sawtooth', vol: 0.045, when: 0.1 });
-      this.tone(55, 2.0, { type: 'sine', vol: 0.1, when: 0.1 });
-    }
-  };
-
-  /* ============ ТЕРМИНАЛ ============ */
-
-  async function typewriter(text, delay = 14, cls = '') {
-    const div = document.createElement('div');
-    if (cls) div.className = cls;
-    term.appendChild(div);
-    for (const ch of text) {
-      div.textContent += ch;
-      scrollBottom();
-      if (ch !== ' ') SFX.click();
-      await sleep(delay * (0.5 + Math.random()));
-    }
-  }
-
-  async function progressBar(label, seconds = 1.5, width = 36) {
-    const row = document.createElement('div');
-    row.append(el(label.padEnd(28, ' '), ''));
-    row.append(document.createTextNode(' ['));
-    const bar = el('░'.repeat(width), '');
-    row.append(bar);
-    row.append(document.createTextNode('] '));
-    const pct = el('  0%', '');
-    row.append(pct);
-    term.appendChild(row);
-    scrollBottom();
-
-    const start = performance.now();
-    let p = 0, lastSoundP = 0;
-    while (p < 100) {
-      await sleep(22);
-      p = Math.min(100, Math.floor((performance.now() - start) / (seconds * 1000) * 100));
-      const filled = Math.floor(width * p / 100);
-      bar.textContent = '█'.repeat(filled) + '░'.repeat(width - filled);
-      pct.textContent = String(p).padStart(3, ' ') + '%';
-      if (p - lastSoundP >= 15) { SFX.progressTick(); lastSoundP = p; }
-    }
-    SFX.complete();
-    scrollBottom();
-  }
-
-  function asciiBox(lines) {
-    const w = Math.max(...lines.map(l => l.length)) + 4;
-    return [
-      '╔' + '═'.repeat(w - 2) + '╗',
-      ...lines.map(l => '║ ' + l.padEnd(w - 4) + ' ║'),
-      '╚' + '═'.repeat(w - 2) + '╝'
-    ].join('\n');
-  }
-
-  /* ============ МАТРИЦА ============ */
-
-  const GLYPHS = "01ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎ";
-  const FONT_SIZE = 16;
-  let drops = [];
-
-  function resizeCanvas() {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const cols = Math.floor(canvas.width / FONT_SIZE);
-    drops = Array.from({ length: cols }, () => ({
-      y: Math.random() * canvas.height / FONT_SIZE,
-      speed: 0.5 + Math.random() * 0.9
-    }));
-    ctx.font = FONT_SIZE + 'px monospace';
-  }
-
-  function startMatrix() {
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    function frame() {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      for (let i = 0; i < drops.length; i++) {
-        const d = drops[i];
-        const x = i * FONT_SIZE;
-        const y = d.y * FONT_SIZE;
-        const ch = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-        ctx.fillStyle = Math.random() < 0.15 ? '#c6ffe2' : '#00ff66';
-        ctx.fillText(ch, x, y);
-        d.y += d.speed;
-        if (y > canvas.height && Math.random() > 0.975) {
-          d.y = 0;
-          d.speed = 0.5 + Math.random() * 0.9;
+        function typeWriter(element, text, i, speed, fnCallback) {
+            if (i < text.length) {
+                element.innerHTML = text.substring(0, i + 1);
+                setTimeout(function() { typeWriter(element, text, i + 1, speed, fnCallback); }, speed); 
+            } else if (typeof fnCallback == 'function') {
+                setTimeout(fnCallback, 500); 
+            }
         }
-      }
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  }
 
-  /* ============ СЦЕНА 1: ВЗЛОМ ============ */
+        function startSmoke() {
+            const interval = setInterval(() => {
+                if (desktopInterface.classList.contains('show')) { clearInterval(interval); return; }
+                const smoke = document.createElement('div');
+                smoke.classList.add('smoke');
+                const randomX = Math.floor(Math.random() * 20) - 10; 
+                smoke.style.left = `calc(50% + ${randomX}px)`;
+                smoke.style.animation = `smokeRise ${3.5 + Math.random() * 2}s ease-out forwards`;
+                smokeContainer.appendChild(smoke);
+                setTimeout(() => smoke.remove(), 5500);
+            }, 250); 
+        }
 
-  async function run() {
-    startMatrix();
-    await sleep(2200);
-    term.classList.add('solid');
-    await sleep(350);
+        function loadQuestion() {
+            if (currentQuestionIndex >= questions.length) {
+                taskContent.innerHTML = `
+                    <div class="task-question" style="color: green;">ВСЕ ЗАДАНИЯ ВЫПОЛНЕНЫ</div>
+                    <p style="text-align:center; font-size: 16px;">Вы выжили... пока что.</p>
+                    <button class="task-btn" style="text-align:center;" onclick="document.getElementById('task-modal').classList.remove('show')">ЗАКРЫТЬ</button>
+                `;
+                return;
+            }
 
-    SFX.blip();
-    await typewriter(">> root@ghost:~# ./init.sh --mode=stealth", 11, 'dim');
-    await sleep(280);
-    await typewriter(">> загрузка ядра... OK", 11);
+            const q = questions[currentQuestionIndex];
+            taskContent.innerHTML = `
+                <div class="task-question">${q.q}</div>
+                <button class="task-btn" onclick="answerQuestion(0)">А) ${q.options[0]}</button>
+                <button class="task-btn" onclick="answerQuestion(1)">Б) ${q.options[1]}</button>
+            `;
+        }
 
-    await progressBar("booting exploit kit", 1.1);
-    await progressBar("bypassing firewall", 1.4);
-    await progressBar("spawning proxies", 0.9);
-    line(" ");
+        async function runSkullSequence() {
+            secretTerminal.innerHTML = '';
+            fakeKeyboard.classList.remove('show');
+            
+            const chars = "0123456789ABCDEF";
+            for(let i=0; i<150; i++) {
+                let hex = "";
+                for(let j=0; j<4; j++) hex += chars[Math.floor(Math.random()*16)];
+                secretTerminal.innerHTML += hex + " ";
+                if (i % 10 === 0) secretTerminal.innerHTML += "\n";
+                secretTerminal.scrollTop = secretTerminal.scrollHeight;
+                await new Promise(r => setTimeout(r, 20)); 
+            }
+            
+            await new Promise(r => setTimeout(r, 1000));
+            secretTerminal.innerHTML += "\n\n> Чего тебе нужно заключённый?";
+            secretTerminal.scrollTop = secretTerminal.scrollHeight;
+            
+            await new Promise(r => setTimeout(r, 1500));
+            fakeKeyboard.classList.add('show');
+            
+            const phrase = "спаси меня боже";
+            const keys = document.querySelectorAll('.key');
+            
+            for(let i=0; i<phrase.length; i++) {
+                let char = phrase[i];
+                
+                if (char === ' ') {
+                    const spaceKey = document.querySelector('.key.space');
+                    spaceKey.classList.add('active');
+                    secretTerminal.innerHTML += " ";
+                    await new Promise(r => setTimeout(r, 150));
+                    spaceKey.classList.remove('active');
+                } else {
+                    let foundKey = Array.from(keys).find(k => k.textContent === char);
+                    if (foundKey) {
+                        foundKey.classList.add('active');
+                        secretTerminal.innerHTML += char;
+                        await new Promise(r => setTimeout(r, 150));
+                        foundKey.classList.remove('active');
+                    } else {
+                        secretTerminal.innerHTML += char;
+                    }
+                }
+                secretTerminal.scrollTop = secretTerminal.scrollHeight;
+                await new Promise(r => setTimeout(r, 100)); 
+            }
+        }
 
-    SFX.blip();
-    const targetIp   = randIp();
-    const targetPort = rndInt(1024, 65535);
-    await typewriter(`>> цель найдена: ${targetIp}:${targetPort}`, 20, 'yellow');
+        window.openFolder = function(folderName) {
+            if (folderName === 'history') {
+                letterModal.classList.add('show');
+            } else if (folderName === 'task') {
+                currentQuestionIndex = 0; 
+                loadQuestion();
+                taskModal.classList.add('show');
+            } else if (folderName === 'skull') {
+                skullModal.classList.add('show');
+                runSkullSequence(); 
+            }
+        };
 
-    for (let i = 0; i < 5; i++) {
-      const ip  = randIp();
-      const row = line(el(`   ↳ probe ${ip} ... `, 'dim'));
-      await sleep(140 + Math.random() * 350);
-      row.append(el('ответ получен', ''));
-      SFX.blip();
-    }
-    line(" ");
+        window.closeLetter = function(event) {
+            if (event.target.id === 'letter-modal' || event.target.className === 'close-btn') {
+                letterModal.classList.remove('show');
+            }
+        };
 
-    const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
-    for (let i = 0; i < 18; i++) {
-      const guess = Array.from({ length: 12 },
-        () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
-      const status = i < 16 ? '…' : (i === 16 ? 'совпадение' : 'OK');
-      line(el('[brute] ', 'dim'), guess + '  ', el(status, 'yellow'));
-      SFX.brute();
-      await sleep(30 + Math.random() * 95);
-    }
-    line(" ");
+        function speakCreepy(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ru-RU';
+                utterance.rate = 0.6; 
+                utterance.pitch = 0.3; 
+                window.speechSynthesis.speak(utterance);
+            }
+        }
 
-    await progressBar("обход шифрования", 1.7);
-    await progressBar("извлечение ключей", 1.4);
-    await progressBar("чтение логов", 1.2);
-    line(" ");
+        window.answerQuestion = function(selectedIndex) {
+            const q = questions[currentQuestionIndex];
+            const isCorrect = (selectedIndex === q.correct);
 
-    await typewriter(">> dump /var/secrets :", 11);
-    for (let i = 0; i < 8; i++) {
-      line(el(`${randHex(8)}  ${randHex(16)}  ${randHex(24)}`, 'dim'));
-      SFX.click();
-      await sleep(55 + Math.random() * 100);
-    }
-    line(" ");
+            if (isCorrect) {
+                currentQuestionIndex++;
+                loadQuestion();
+            } else {
+                if (currentQuestionIndex === 0 || currentQuestionIndex === 1) {
+                    taskModal.classList.remove('show');
+                    const crt = document.getElementById('crt-overlay');
+                    crt.classList.add('active');
+                    
+                    let eyeDuration = (currentQuestionIndex === 0) ? 1500 : 3000; 
+                    
+                    setTimeout(() => {
+                        crt.classList.remove('active');
+                        document.getElementById('anger-overlay').classList.add('show');
+                        
+                        if (currentQuestionIndex === 1) {
+                            speakCreepy("Еще раз...");
+                        }
+                        
+                        setTimeout(() => {
+                            document.getElementById('anger-overlay').classList.remove('show');
+                            
+                            currentQuestionIndex++;
+                            loadQuestion();
+                            taskModal.classList.add('show');
+                            
+                        }, eyeDuration);
+                        
+                    }, 500);
 
-    await sleep(600);
-    SFX.noise(0.5, 0.06, 1500);
-    SFX.alarm(1.1);
+                } else if (currentQuestionIndex === 2) {
+                    taskModal.classList.remove('show');
+                    document.getElementById('crt-overlay').classList.add('active');
+                    
+                    setTimeout(() => {
+                        document.getElementById('crt-overlay').classList.remove('active');
+                        
+                        const gameOver = document.getElementById('game-over-overlay');
+                        gameOver.classList.add('show');
+                        
+                        setTimeout(() => {
+                            document.getElementById('crack-effect').classList.add('animate');
+                            document.getElementById('game-over-text').classList.add('animate');
+                            document.getElementById('game-over-subtext').classList.add('animate');
+                        }, 100);
+                        
+                    }, 500);
+                }
+            }
+        };
 
-    const banner = document.createElement('pre');
-    banner.className = 'bright';
-    banner.textContent = asciiBox([
-      "СОЕДИНЕНИЕ УСТАНОВЛЕНО",
-      "ДОСТУП РАЗРЕШЁН",
-      "сессия: " + randHex(16)
-    ]);
-    term.appendChild(banner);
-    scrollBottom();
-    line(" ");
-
-    await sleep(1800);
-    SFX.success();
-    SFX.noise(0.3, 0.04, 3000);
-    document.getElementById('big-success').classList.add('show');
-  }
-
-  /* ============ СЦЕНА 2: ДЕПЛОЙ + ВЗЛОМ ЦЕЛИ ============ */
-
-  async function runSecondScene(targetName) {
-    // скрываем старые панели
-    document.getElementById('big-success').classList.remove('show');
-    // чистим терминал для новой сессии
-    term.innerHTML = '';
-    term.classList.add('solid');
-
-    SFX.blip();
-    await typewriter(">> root@ghost:~# ./deploy.sh --target=uploaded", 10, 'dim');
-    await sleep(280);
-    await typewriter(">> загрузка payload... OK", 10);
-
-    await progressBar("исполнение на цели", 1.4);
-    await progressBar("получение shell", 1.1);
-    line(" ");
-
-    await typewriter("[+] shell получен: " + randIp(), 14, 'bright');
-    await typewriter("[+] чтение /etc/passwd", 14, 'dim');
-    await typewriter("[+] чтение ~/Documents", 14, 'dim');
-    await typewriter("[+] чтение ~/Downloads", 14, 'dim');
-    await typewriter("[+] чтение ~/.ssh/id_rsa", 14, 'dim');
-    await typewriter("[+] запрос к БД клиентов...", 14, 'dim');
-    line(" ");
-
-    await progressBar("сбор метаданных", 1.3);
-    await progressBar("деанонимизация", 1.4);
-    line(" ");
-
-    await typewriter(">> формирование профиля цели...", 15, 'yellow');
-    for (let i = 0; i < 6; i++) {
-      line(el(`   ${randHex(8)}  ${randHex(12)}  ${randHex(20)}`, 'dim'));
-      SFX.click();
-      await sleep(50 + Math.random() * 90);
-    }
-    line(" ");
-
-    await sleep(700);
-    SFX.alarm(0.9);
-    SFX.noise(0.4, 0.06, 1200);
-    await typewriter(">> ПРОФИЛЬ ГОТОВ", 20, 'red');
-    await sleep(500);
-
-    SFX.breach();
-    showHackedPanel(targetName);
-  }
-
-  /* ============ ГЕНЕРАЦИЯ СЛУЧАЙНЫХ ДАННЫХ ============ */
-
-  const DATA_POOL = {
-    cities: ["Москва","Санкт-Петербург","Новосибирск","Екатеринбург","Казань",
-             "Нижний Новгород","Челябинск","Самара","Омск","Ростов-на-Дону",
-             "Уфа","Красноярск","Воронеж","Пермь","Волгоград","Краснодар",
-             "Саратов","Тюмень","Тольятти","Ижевск"],
-    jobs:   ["Инженер","Программист","Менеджер","Врач","Учитель","Дизайнер",
-             "Бухгалтер","Юрист","Водитель","Повар","Электрик","Сантехник",
-             "Архитектор","Аналитик","Продюсер","Журналист","Маркетолог","Логист"],
-    maritalM: ["Холост","Женат","В разводе"],
-    maritalF: ["Не замужем","Замужем","В разводе"],
-    emailDomains: ["mail.ru","yandex.ru","gmail.com","inbox.ru","list.ru","bk.ru"]
-  };
-
-  const TRANSLIT = {
-    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z',
-    'и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
-    'с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh',
-    'щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
-  };
-
-  function translit(str) {
-    return str.toLowerCase().split('').map(ch => TRANSLIT[ch] ?? ch).join('');
-  }
-
-  function guessGender(name) {
-    const parts = name.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    for (const p of parts) {
-      if (/(ова|ева|ёва|ина|ына|ская|цкая|ая)$/.test(p)) return 'f';
-      if (/(ов|ев|ёв|ин|ын|ский|цкий|ый|ой)$/.test(p)) return 'm';
-    }
-    return Math.random() < 0.5 ? 'm' : 'f';
-  }
-
-  function makeEmail(name) {
-    const parts = name.trim().split(/\s+/).map(translit).filter(Boolean);
-    const base = parts.slice(0, 2).join('.') || 'user';
-    const num = rndInt(10, 999);
-    const domain = pick(DATA_POOL.emailDomains);
-    return `${base}${num}@${domain}`;
-  }
-
-  function makePhone() {
-    return `+7 (${rndInt(900,999)}) ${rndInt(100,999)}-${rndInt(10,99)}-${rndInt(10,99)}`;
-  }
-
-  function pluralAge(n) {
-    const n10 = n % 10, n100 = n % 100;
-    if (n10 === 1 && n100 !== 11) return 'год';
-    if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return 'года';
-    return 'лет';
-  }
-
-  function makeFakePassword() {
-    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#";
-    return Array.from({length: 9}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
-  }
-
-  function generateFakeData(name) {
-    const gender = guessGender(name);
-    const age = rndInt(18, 68);
-    const income = rndInt(30, 250) * 1000;
-    return [
-      ['Город',            pick(DATA_POOL.cities)],
-      ['Возраст',          `${age} ${pluralAge(age)}`],
-      ['Пол',              gender === 'f' ? 'Женский' : 'Мужской'],
-      ['Email',            makeEmail(name)],
-      ['Телефон',          makePhone()],
-      ['IP-адрес',         randIp()],
-      ['Работа',           pick(DATA_POOL.jobs)],
-      ['Семейное',         pick(gender === 'f' ? DATA_POOL.maritalF : DATA_POOL.maritalM)],
-      ['Доход',            `${income.toLocaleString('ru-RU')} ₽/мес`],
-      ['Пароль',           makeFakePassword()]
-    ];
-  }
-
-  function showHackedPanel(name) {
-    document.getElementById('hacked-name').textContent = name;
-    const table = document.getElementById('hacked-table');
-    table.innerHTML = '';
-    for (const [k, v] of generateFakeData(name)) {
-      const row = document.createElement('div');
-      row.className = 'hacked-row';
-      const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k;
-      const vv = document.createElement('span'); vv.className = 'v'; vv.textContent = v;
-      row.append(kk, vv);
-      table.appendChild(row);
-    }
-    document.getElementById('hacked-panel').classList.add('show');
-  }
-
-  /* ============ СВОЙ КОД ============ */
-
-  const customCodeBtn = document.getElementById('custom-code-btn');
-  const pwdModal      = document.getElementById('pwd-modal');
-  const pwdBox        = document.getElementById('pwd-box');
-  const pwdInput      = document.getElementById('pwd-input');
-  const codeView      = document.getElementById('code-view');
-  const codeOutput    = document.getElementById('code-output');
-  const uploadBtn     = document.getElementById('upload-btn');
-  const nameModal     = document.getElementById('name-modal');
-  const nameInput     = document.getElementById('name-input');
-  const PASSWORD = '6767';
-
-  customCodeBtn.addEventListener('click', () => {
-    if (!SFX.ctx) SFX.init(); else SFX.resume();
-    pwdModal.classList.add('show');
-    pwdInput.value = '';
-    setTimeout(() => pwdInput.focus(), 60);
-    SFX.blip();
-  });
-
-  pwdInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); checkPassword(); }
-  });
-
-  async function checkPassword() {
-    if (pwdInput.value === PASSWORD) {
-      pwdModal.classList.remove('show');
-      SFX.complete();
-      await sleep(250);
-      showCodeView();
-    } else {
-      SFX.error();
-      pwdBox.classList.add('shake');
-      await sleep(450);
-      location.reload();
-    }
-  }
-
-  const FAKE_CODE =
-`#!/usr/bin/env python3
-# custom_payload.py — author: <hidden>
-# module: ghost.core v2.7
-
-import os, sys
-from ghost.core import probe, inject, exec_payload
-
-TARGETS = ["10.0.0.1", "10.0.0.2", "10.0.0.3"]
-PAYLOAD = "0x4a3f...7e91"
-
-def scan_ports(ip):
-    """scan all 65535 ports"""
-    open_ports = []
-    for p in range(1, 65536):
-        if probe(ip, p, timeout=0.3):
-            open_ports.append(p)
-    return open_ports
-
-def deploy(ip):
-    print(f"[*] target: {ip}")
-    ports = scan_ports(ip)
-    print(f"[+] found: {len(ports)} open")
-    for p in ports:
-        if inject(ip, p, PAYLOAD):
-            return True
-    return False
-
-if __name__ == "__main__":
-    for t in TARGETS:
-        if deploy(t):
-            print(f"[!] {t} -> DEPLOYED")
-`;
-
-  async function showCodeView() {
-    codeView.classList.add('show');
-    codeOutput.textContent = '';
-    uploadBtn.classList.remove('show');
-    uploadBtn.disabled = false;
-    uploadBtn.textContent = 'ЗАГРУЗИТЬ';
-    uploadBtn.style.borderColor = '#ff5566';
-    uploadBtn.style.color = '#ff5566';
-    uploadBtn.style.textShadow = '0 0 12px #ff5566';
-    uploadBtn.style.boxShadow = '0 0 20px rgba(255, 80, 100, 0.45), inset 0 0 15px rgba(255, 80, 100, 0.15)';
-
-    for (const ch of FAKE_CODE) {
-      codeOutput.textContent += ch;
-      codeOutput.scrollTop = codeOutput.scrollHeight;
-      if (ch !== ' ' && ch !== '\n' && Math.random() < 0.35) SFX.click();
-      await sleep(ch === '\n' ? 26 : 7);
-    }
-
-    await sleep(200);
-    SFX.complete();
-    uploadBtn.classList.add('show');
-  }
-
-  /* ---- ЗАГРУЗИТЬ → окно с именем ---- */
-
-  uploadBtn.addEventListener('click', async () => {
-    if (uploadBtn.disabled) return;
-    uploadBtn.disabled = true;
-    SFX.blip();
-    uploadBtn.textContent = 'ЗАГРУЗКА...';
-    await sleep(1400);
-    SFX.success();
-    uploadBtn.textContent = 'ГОТОВО ✓';
-    uploadBtn.style.borderColor = '#00ff88';
-    uploadBtn.style.color = '#00ff88';
-    uploadBtn.style.textShadow = '0 0 12px #00ff88';
-    uploadBtn.style.boxShadow = '0 0 30px rgba(0, 255, 120, 0.6), inset 0 0 18px rgba(0, 255, 120, 0.2)';
-    await sleep(700);
-
-    // скрываем редактор и показываем окно с именем
-    codeView.classList.remove('show');
-    nameModal.classList.add('show');
-    nameInput.value = '';
-    setTimeout(() => nameInput.focus(), 80);
-    SFX.blip();
-  });
-
-  nameInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const raw = nameInput.value.trim();
-      const targetName = raw || 'Неизвестный Объект';
-      nameModal.classList.remove('show');
-      SFX.complete();
-      await sleep(250);
-      runSecondScene(targetName).catch(err => console.error(err));
-    }
-  });
-
-  /* ============ СТАРТ ============ */
-
-  const startScreen = document.getElementById('start');
-  let started = false;
-
-  startScreen.addEventListener('click', async () => {
-    if (started) return;
-    started = true;
-    if (!SFX.ctx) SFX.init(); else SFX.resume();
-    startScreen.classList.add('hide');
-    setTimeout(() => startScreen.remove(), 500);
-    SFX.blip();
-    await sleep(200);
-    run().catch(err => console.error(err));
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (document.activeElement === pwdInput || document.activeElement === nameInput) return;
-    if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
-      location.reload();
-    }
-  });
-
-})();
-</script>
+        startBtn.addEventListener('click', () => {
+            startBtn.style.display = 'none';
+            sceneIntro.style.display = 'flex';
+            setTimeout(() => silhouette.classList.add('show'), 100);
+            setTimeout(() => {
+                cursorIntro.style.display = 'inline-block';
+                typeWriter(textIntro, "Хочешь приступить к игре?", 0, 100, function() {
+                    choices.style.display = 'flex';
+                    setTimeout(() => {
+                        silhouette.classList.add('jump');
+                        setTimeout(() => {
+                            choices.style.display = 'none';
+                            textIntro.innerHTML = ''; 
+                        }, 300);
+                        setTimeout(() => {
+                            silhouette.classList.remove('jump');
+                            typeWriter(textIntro, "Твое мнение ничего не значит. Ты будешь играть.", 0, 100, function() {
+                                setTimeout(() => {
+                                    sceneIntro.style.opacity = '0';
+                                    setTimeout(() => {
+                                        sceneIntro.style.display = 'none';
+                                        sceneRoom.style.display = 'flex';
+                                        setTimeout(() => {
+                                            sceneRoom.style.opacity = '1';
+                                            startSmoke(); 
+                                            setTimeout(() => {
+                                                textRoom.style.opacity = '1';
+                                                typeWriter(textRoom, "Присаживайся. У нас мало времени.", 0, 120, function() {
+                                                    setTimeout(() => {
+                                                        textRoom.innerHTML = ''; 
+                                                        typeWriter(textRoom, "Выполни все задания и выйдешь из игры.\nНе выполнишь — будет плохо.", 0, 80, function() {
+                                                            setTimeout(() => {
+                                                                textRoom.style.opacity = '0'; 
+                                                                emergingBoard.classList.add('show'); 
+                                                                setTimeout(() => {
+                                                                    emergingBoard.classList.add('zoom-effect');
+                                                                    seatedFigure.style.opacity = '0';
+                                                                    table.style.opacity = '0';
+                                                                    chair.style.opacity = '0';
+                                                                    setTimeout(() => {
+                                                                        sceneRoom.style.display = 'none';
+                                                                        desktopInterface.style.display = 'block';
+                                                                        setTimeout(() => { desktopInterface.classList.add('show'); }, 50);
+                                                                    }, 1500);
+                                                                }, 3000);
+                                                            }, 2500); 
+                                                        });
+                                                    }, 2000); 
+                                                });
+                                            }, 3000);
+                                        }, 50);
+                                    }, 2000); 
+                                }, 2000); 
+                            });
+                        }, 800);
+                    }, 2500); 
+                });
+            }, 5000); 
+        });
+    </script>
 </body>
 </html>
