@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ghost://terminal</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: #000; overflow: hidden;
+    font-family: 'Consolas', 'Courier New', monospace;
+    color: #00ff88;
+    user-select: none;
+  }
+
+  #matrix { position: fixed; inset: 0; z-index: 0; display: block; }
+
+  #terminal {
+    position: fixed; inset: 0; z-index: 1;
+    padding: 22px 30px;
+    font-size: 15px; line-height: 1.45;
+    white-space: pre; overflow-y: auto; overflow-x: hidden;
+    text-shadow: 0 0 6px rgba(0, 255, 120, 0.5);
+    background: transparent;
+    transition: background 0.9s ease;
+    scrollbar-width: none;
+  }
+  #terminal::-webkit-scrollbar { display: none; }
+  #terminal.solid { background: rgba(0, 0, 0, 0.74); }
+
+  .dim    { color: #0b8b56; text-shadow: none; }
+  .yellow { color: #ffe066; text-shadow: 0 0 7px rgba(255, 220, 80, 0.6); }
+  .cyan   { color: #66e0ff; text-shadow: 0 0 7px rgba(100, 220, 255, 0.6); }
+  .red    { color: #ff5566; text-shadow: 0 0 7px rgba(255, 80, 100, 0.6); }
+  .bright { color: #b6ffdd; text-shadow: 0 0 10px rgba(180, 255, 220, 0.9); }
+  pre { margin: 0; font-family: inherit; }
+
+  #warn {
+    position: fixed; bottom: 8px; left: 14px; z-index: 2;
+    color: #5a1a1a; font-size: 11px; letter-spacing: 1.5px;
+    text-shadow: none; pointer-events: none;
+  }
+
+  /* ---- СВОЙ КОД ---- */
+  #custom-code-btn {
+    position: fixed; bottom: 8px; right: 14px; z-index: 30;
+    color: #0b8b56; font-size: 11px; letter-spacing: 1.5px;
+    cursor: pointer; padding: 3px 8px;
+    transition: all 0.2s; border: 1px solid transparent;
+  }
+  #custom-code-btn:hover {
+    color: #00ff88; text-shadow: 0 0 10px #00ff88; border-color: #00ff88;
+  }
+
+  /* ---- стартовый экран ---- */
+  #start {
+    position: fixed; inset: 0; z-index: 20;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.55);
+    cursor: pointer; transition: opacity 0.4s ease;
+  }
+  #start.hide { opacity: 0; pointer-events: none; }
+  .start-btn {
+    font-size: clamp(28px, 4vw, 44px); color: #00ff88;
+    letter-spacing: 0.3em; padding: 22px 48px;
+    border: 2px solid #00ff88; text-shadow: 0 0 14px #00ff88;
+    box-shadow: 0 0 24px rgba(0, 255, 120, 0.4), inset 0 0 24px rgba(0, 255, 120, 0.15);
+    animation: pulseBtn 1.6s ease-in-out infinite;
+  }
+  .start-hint { margin-top: 22px; font-size: 13px; color: #66e0ff; letter-spacing: 0.4em; opacity: 0.7; }
+  @keyframes pulseBtn {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); box-shadow: 0 0 40px rgba(0, 255, 120, 0.7), inset 0 0 30px rgba(0, 255, 120, 0.25); }
+  }
+
+  /* ---- УСПЕШНО ---- */
+  #big-success {
+    position: fixed; inset: 0; z-index: 10;
+    display: none; align-items: center; justify-content: center;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.82);
+    pointer-events: none; text-align: center; padding: 30px;
+  }
+  #big-success.show { display: flex; animation: fadeIn 0.7s ease; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .success-text {
+    position: relative;
+    font-size: clamp(64px, 15vw, 220px);
+    font-weight: 900; color: #00ff88;
+    letter-spacing: 0.08em; line-height: 1;
+    text-shadow: 0 0 20px #00ff88, 0 0 44px #00ff88, 0 0 80px #00cc66, 0 0 140px #009944;
+    animation: successPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes successPulse {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.035); filter: brightness(1.25); }
+  }
+  .success-text::before, .success-text::after {
+    content: attr(data-text); position: absolute; inset: 0;
+    opacity: 0.08; pointer-events: none;
+  }
+  .success-text::before { color: #ff0055; animation: glitch1 3s infinite; }
+  .success-text::after  { color: #00aaff; animation: glitch2 2.4s infinite; }
+  @keyframes glitch1 {
+    0%, 90%, 100% { transform: translate(0,0); }
+    92% { transform: translate(-3px, 1px); }
+    94% { transform: translate(2px, -2px); }
+    96% { transform: translate(-2px, -1px); }
+  }
+  @keyframes glitch2 {
+    0%, 88%, 100% { transform: translate(0,0); }
+    90% { transform: translate(3px, 2px); }
+    93% { transform: translate(-2px, 1px); }
+    95% { transform: translate(1px, -1px); }
+  }
+  .success-sub {
+    font-size: clamp(14px, 2vw, 22px); color: #66e0ff;
+    letter-spacing: 0.55em; margin-top: 26px;
+    text-shadow: 0 0 12px #66e0ff;
+    animation: fadeIn 1.2s ease 0.4s both;
+  }
+  .success-disclaimer {
+    font-size: clamp(10px, 1.1vw, 13px); color: #0b8b56;
+    letter-spacing: 0.3em; margin-top: 40px; line-height: 1.7;
+    text-shadow: none; animation: fadeIn 1.4s ease 1.2s both;
+  }
+  .success-disclaimer b { color: #ff5566; font-weight: 700; }
+
+  /* ---- модалки ---- */
+  #pwd-modal, #name-modal {
+    position: fixed; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.88);
+  }
+  #pwd-modal { z-index: 40; }
+  #name-modal { z-index: 42; }
+  #pwd-modal.show, #name-modal.show { display: flex; animation: fadeIn 0.25s ease; }
+
+  .pwd-box {
+    border: 2px solid #00ff88; padding: 32px 44px;
+    background: rgba(0, 0, 0, 0.9);
+    box-shadow: 0 0 30px rgba(0, 255, 120, 0.4), inset 0 0 20px rgba(0, 255, 120, 0.1);
+    text-align: center; min-width: 340px;
+  }
+  .pwd-box.shake { animation: shake 0.4s ease; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-5px); }
+    80% { transform: translateX(5px); }
+  }
+  .pwd-title {
+    color: #ff5566; letter-spacing: 0.25em; font-size: 12px;
+    margin-bottom: 14px; text-shadow: 0 0 8px rgba(255, 80, 100, 0.6);
+  }
+  .pwd-sub {
+    color: #00ff88; font-size: 14px; letter-spacing: 0.15em; margin-bottom: 20px;
+  }
+  #pwd-input, #name-input {
+    background: #000; border: 1px solid #00ff88; color: #00ff88;
+    padding: 10px 14px; font-family: inherit; text-align: center;
+    width: 100%; outline: none; letter-spacing: 0.5em; font-size: 22px;
+  }
+  #name-input { letter-spacing: 0.05em; font-size: 18px; }
+  #name-input::placeholder { color: #0b8b56; letter-spacing: 0.05em; }
+  #pwd-input:focus, #name-input:focus { box-shadow: 0 0 14px rgba(0, 255, 120, 0.55); }
+  .pwd-hint {
+    color: #0b8b56; font-size: 11px; letter-spacing: 0.2em; margin-top: 16px;
+  }
+
+  /* ---- просмотр кода ---- */
+  #code-view {
+    position: fixed; inset: 0; z-index: 35;
+    display: none; flex-direction: column; background: #000;
+  }
+  #code-view.show { display: flex; animation: fadeIn 0.3s ease; }
+  .code-header {
+    padding: 10px 22px; background: #081a10; color: #00ff88;
+    font-size: 13px; letter-spacing: 0.15em;
+    border-bottom: 1px solid #00ff88;
+    text-shadow: 0 0 6px rgba(0, 255, 120, 0.5);
+  }
+  #code-output {
+    flex: 1; padding: 20px 30px; margin: 0;
+    font-size: 14px; line-height: 1.55;
+    white-space: pre; overflow: auto;
+    color: #b6ffdd; text-shadow: 0 0 4px rgba(180, 255, 220, 0.4);
+    scrollbar-width: thin; scrollbar-color: #0b8b56 #000;
+  }
+  #code-output::-webkit-scrollbar { width: 8px; }
+  #code-output::-webkit-scrollbar-thumb { background: #0b8b56; }
+  #code-output::-webkit-scrollbar-track { background: #000; }
+
+  #upload-btn {
+    display: none; align-self: center;
+    margin: 20px; padding: 16px 52px;
+    background: #2a0000; color: #ff5566;
+    border: 2px solid #ff5566;
+    font-family: inherit; font-size: 20px; letter-spacing: 0.4em;
+    cursor: pointer; text-shadow: 0 0 12px #ff5566;
+    box-shadow: 0 0 20px rgba(255, 80, 100, 0.45), inset 0 0 15px rgba(255, 80, 100, 0.15);
+    transition: all 0.2s ease;
+  }
+  #upload-btn.show { display: block; animation: uploadIn 0.5s ease; }
+  @keyframes uploadIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.9); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  #upload-btn:hover:not(:disabled) {
+    background: #3a0000;
+    box-shadow: 0 0 38px rgba(255, 80, 100, 0.85), inset 0 0 22px rgba(255, 80, 100, 0.3);
+  }
+  #upload-btn:disabled { cursor: default; }
+
+  /* ---- ВЗЛОМАН ---- */
+  #hacked-panel {
+    position: fixed; inset: 0; z-index: 32;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: rgba(0, 0, 0, 0.92);
+    padding: 30px; overflow-y: auto; text-align: center;
+  }
+  #hacked-panel.show { display: flex; animation: fadeIn 0.5s ease; }
+
+  .hacked-title {
+    position: relative;
+    font-size: clamp(56px, 12vw, 180px);
+    font-weight: 900; color: #ff2233;
+    letter-spacing: 0.1em; line-height: 1;
+    text-shadow: 0 0 20px #ff2233, 0 0 44px #ff2233, 0 0 80px #cc0022, 0 0 140px #990011;
+    animation: hackedPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes hackedPulse {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.04); filter: brightness(1.3); }
+  }
+  .hacked-title::before, .hacked-title::after {
+    content: attr(data-text); position: absolute; inset: 0;
+    opacity: 0.1; pointer-events: none;
+  }
+  .hacked-title::before { color: #ffaa00; animation: glitch1 3s infinite; }
+  .hacked-title::after  { color: #00aaff; animation: glitch2 2.4s infinite; }
+
+  .hacked-name {
+    font-size: clamp(20px, 3vw, 36px); color: #00ff88;
+    letter-spacing: 0.15em; margin-top: 8px;
+    text-shadow: 0 0 12px #00ff88;
+    animation: fadeIn 0.8s ease 0.3s both;
+  }
+
+  .hacked-table {
+    margin-top: 32px; border: 1px solid #ff5566;
+    background: rgba(20, 0, 0, 0.7);
+    padding: 18px 28px;
+    font-size: clamp(12px, 1.4vw, 16px);
+    text-align: left; min-width: 340px;
+    animation: fadeIn 0.9s ease 0.5s both;
+    box-shadow: 0 0 24px rgba(255, 80, 100, 0.3);
+  }
+  .hacked-row {
+    display: flex; justify-content: space-between;
+    padding: 6px 0; gap: 40px;
+    border-bottom: 1px dashed rgba(255, 85, 102, 0.25);
+    word-break: break-word;
+  }
+  .hacked-row:last-child { border-bottom: none; }
+  .hacked-row .k { color: #ff8899; flex-shrink: 0; }
+  .hacked-row .v { color: #00ff88; font-weight: 600; text-align: right; }
+
+  .hacked-disclaimer {
+    margin-top: 26px; color: #0b8b56;
+    font-size: 11px; letter-spacing: 0.3em; line-height: 1.7;
+    animation: fadeIn 1.2s ease 1s both;
+  }
+  .hacked-disclaimer b { color: #ff5566; }
+</style>
+</head>
+<body>
+
+<canvas id="matrix"></canvas>
+<div id="terminal"></div>
+<div id="warn">// ИМИТАЦИЯ. ЭТО НЕ ВЗЛОМ. ПРОСТО ТЕКСТ.</div>
+<div id="custom-code-btn">▸ СВОЙ КОД</div>
+
+<div id="start">
+  <div class="start-btn">▶ НАЧАТЬ</div>
+  <div class="start-hint">клик включит звук</div>
+</div>
+
+<div id="big-success">
+  <div class="success-text" data-text="УСПЕШНО">УСПЕШНО</div>
+  <div class="success-sub">ВЗЛОМ ЗАВЕРШЁН</div>
+  <div class="success-disclaimer">
+    // это была имитация. ни одного реального взлома.<br>
+    // <b>нажми R для повтора</b>
+  </div>
+</div>
+
+<div id="pwd-modal">
+  <div class="pwd-box" id="pwd-box">
+    <div class="pwd-title">// AUTHORIZATION REQUIRED</div>
+    <div class="pwd-sub">введите пароль</div>
+    <input id="pwd-input" type="password" autocomplete="off" spellcheck="false" maxlength="16">
+    <div class="pwd-hint">ENTER — ПОДТВЕРДИТЬ</div>
+  </div>
+</div>
+
+<div id="code-view">
+  <div class="code-header">// custom_payload.py — author: &lt;hidden&gt;</div>
+  <pre id="code-output"></pre>
+  <button id="upload-btn">ЗАГРУЗИТЬ</button>
+</div>
+
+<div id="name-modal">
+  <div class="pwd-box" id="name-box">
+    <div class="pwd-title">// TARGET SELECTION</div>
+    <div class="pwd-sub">введите имя цели</div>
+    <input id="name-input" type="text" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Иванов Иван">
+    <div class="pwd-hint">ENTER — НАЧАТЬ ВЗЛОМ</div>
+  </div>
+</div>
+
+<div id="hacked-panel">
+  <div class="hacked-title" data-text="ВЗЛОМАН">ВЗЛОМАН</div>
+  <div class="hacked-name" id="hacked-name">—</div>
+  <div class="hacked-table" id="hacked-table"></div>
+  <div class="hacked-disclaimer">
+    // это имитация. данные сгенерированы случайно.<br>
+    // <b>нажми R для повтора</b>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const term   = document.getElementById('terminal');
+  const canvas = document.getElementById('matrix');
+  const ctx    = canvas.getContext('2d', { alpha: false });
+
+  /* ============ УТИЛИТЫ ============ */
+
+  const sleep   = (ms) => new Promise(r => setTimeout(r, ms));
+  const rndInt  = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
+  const pick    = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const randHex = (n) => Array.from({ length: n },
+                         () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("");
+  const randIp  = () => `${rndInt(10,223)}.${rndInt(0,255)}.${rndInt(0,255)}.${rndInt(1,254)}`;
+  const scrollBottom = () => { term.scrollTop = term.scrollHeight; };
+
+  function line(...parts) {
+    const div = document.createElement('div');
+    for (const p of parts) {
+      if (p instanceof Node) div.appendChild(p);
+      else div.appendChild(document.createTextNode(p));
+    }
+    term.appendChild(div);
+    scrollBottom();
+    return div;
+  }
+
+  function el(text, cls) {
+    const s = document.createElement('span');
+    if (cls) s.className = cls;
+    s.textContent = text;
+    return s;
+  }
+
+  /* ============ ЗВУК ============ */
+
+  const SFX = {
+    ctx: null, master: null, enabled: false,
+
+    init() {
+      if (this.ctx) return;
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.55;
+        this.master.connect(this.ctx.destination);
+        this.enabled = true;
+      } catch (e) { this.enabled = false; }
+    },
+    resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+
+    tone(freq, dur, { type = 'square', vol = 0.05, attack = 0.002, when = 0, slideTo = null } = {}) {
+      if (!this.enabled) return;
+      const t0 = this.ctx.currentTime + when;
+      const osc = this.ctx.createOscillator();
+      const g   = this.ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if (slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(slideTo, 1), t0 + dur);
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(vol, t0 + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      osc.connect(g); g.connect(this.master);
+      osc.start(t0); osc.stop(t0 + dur + 0.03);
+    },
+
+    noise(dur = 0.3, vol = 0.04, filterFreq = 2000) {
+      if (!this.enabled) return;
+      const t0 = this.ctx.currentTime;
+      const len = Math.floor(this.ctx.sampleRate * dur);
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      const src = this.ctx.createBufferSource(); src.buffer = buf;
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass'; filter.frequency.value = filterFreq; filter.Q.value = 0.7;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(vol, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(filter); filter.connect(g); g.connect(this.master);
+      src.start(t0);
+    },
+
+    click()        { this.tone(1700 + Math.random() * 800, 0.009, { type: 'square', vol: 0.015 }); },
+    blip()         { this.tone(880 + Math.random() * 200, 0.06, { type: 'triangle', vol: 0.045 }); },
+    progressTick() { this.tone(500 + Math.random() * 200, 0.025, { type: 'square', vol: 0.02, slideTo: 900 }); },
+    complete()     { this.tone(1200, 0.07, { type: 'triangle', vol: 0.05 });
+                     this.tone(1700, 0.09, { type: 'triangle', vol: 0.045, when: 0.08 }); },
+    brute()        { this.tone(280 + Math.random() * 500, 0.045, { type: 'sawtooth', vol: 0.022, slideTo: 180 }); },
+
+    alarm(duration = 1.2) {
+      let t = 0;
+      while (t < duration) {
+        this.tone(880, 0.11, { type: 'square', vol: 0.045, when: t });
+        this.tone(660, 0.11, { type: 'square', vol: 0.045, when: t + 0.12 });
+        t += 0.26;
+      }
+    },
+    success() {
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      notes.forEach((f, i) => {
+        this.tone(f, 0.4, { type: 'triangle', vol: 0.07, when: i * 0.09 });
+        this.tone(f * 2, 0.25, { type: 'sine', vol: 0.025, when: i * 0.09 });
+      });
+      [1046.5, 1318.5, 1568.0, 2093.0].forEach(f => {
+        this.tone(f, 1.2, { type: 'sine', vol: 0.05, when: 0.45 });
+      });
+      this.tone(130.81, 0.5, { type: 'sine', vol: 0.08, when: 0.4 });
+    },
+    error() {
+      this.tone(220, 0.15, { type: 'sawtooth', vol: 0.08 });
+      this.tone(160, 0.25, { type: 'sawtooth', vol: 0.08, when: 0.13, slideTo: 60 });
+    },
+    breach() {
+      // зловещий аккорд для "ВЗЛОМАН"
+      this.tone(110, 1.5, { type: 'sawtooth', vol: 0.06 });
+      this.tone(138.6, 1.5, { type: 'sawtooth', vol: 0.045, when: 0.05 });
+      this.tone(164.8, 1.5, { type: 'sawtooth', vol: 0.045, when: 0.1 });
+      this.tone(55, 2.0, { type: 'sine', vol: 0.1, when: 0.1 });
+    }
+  };
+
+  /* ============ ТЕРМИНАЛ ============ */
+
+  async function typewriter(text, delay = 14, cls = '') {
+    const div = document.createElement('div');
+    if (cls) div.className = cls;
+    term.appendChild(div);
+    for (const ch of text) {
+      div.textContent += ch;
+      scrollBottom();
+      if (ch !== ' ') SFX.click();
+      await sleep(delay * (0.5 + Math.random()));
+    }
+  }
+
+  async function progressBar(label, seconds = 1.5, width = 36) {
+    const row = document.createElement('div');
+    row.append(el(label.padEnd(28, ' '), ''));
+    row.append(document.createTextNode(' ['));
+    const bar = el('░'.repeat(width), '');
+    row.append(bar);
+    row.append(document.createTextNode('] '));
+    const pct = el('  0%', '');
+    row.append(pct);
+    term.appendChild(row);
+    scrollBottom();
+
+    const start = performance.now();
+    let p = 0, lastSoundP = 0;
+    while (p < 100) {
+      await sleep(22);
+      p = Math.min(100, Math.floor((performance.now() - start) / (seconds * 1000) * 100));
+      const filled = Math.floor(width * p / 100);
+      bar.textContent = '█'.repeat(filled) + '░'.repeat(width - filled);
+      pct.textContent = String(p).padStart(3, ' ') + '%';
+      if (p - lastSoundP >= 15) { SFX.progressTick(); lastSoundP = p; }
+    }
+    SFX.complete();
+    scrollBottom();
+  }
+
+  function asciiBox(lines) {
+    const w = Math.max(...lines.map(l => l.length)) + 4;
+    return [
+      '╔' + '═'.repeat(w - 2) + '╗',
+      ...lines.map(l => '║ ' + l.padEnd(w - 4) + ' ║'),
+      '╚' + '═'.repeat(w - 2) + '╝'
+    ].join('\n');
+  }
+
+  /* ============ МАТРИЦА ============ */
+
+  const GLYPHS = "01ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎ";
+  const FONT_SIZE = 16;
+  let drops = [];
+
+  function resizeCanvas() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const cols = Math.floor(canvas.width / FONT_SIZE);
+    drops = Array.from({ length: cols }, () => ({
+      y: Math.random() * canvas.height / FONT_SIZE,
+      speed: 0.5 + Math.random() * 0.9
+    }));
+    ctx.font = FONT_SIZE + 'px monospace';
+  }
+
+  function startMatrix() {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    function frame() {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < drops.length; i++) {
+        const d = drops[i];
+        const x = i * FONT_SIZE;
+        const y = d.y * FONT_SIZE;
+        const ch = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+        ctx.fillStyle = Math.random() < 0.15 ? '#c6ffe2' : '#00ff66';
+        ctx.fillText(ch, x, y);
+        d.y += d.speed;
+        if (y > canvas.height && Math.random() > 0.975) {
+          d.y = 0;
+          d.speed = 0.5 + Math.random() * 0.9;
+        }
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* ============ СЦЕНА 1: ВЗЛОМ ============ */
+
+  async function run() {
+    startMatrix();
+    await sleep(2200);
+    term.classList.add('solid');
+    await sleep(350);
+
+    SFX.blip();
+    await typewriter(">> root@ghost:~# ./init.sh --mode=stealth", 11, 'dim');
+    await sleep(280);
+    await typewriter(">> загрузка ядра... OK", 11);
+
+    await progressBar("booting exploit kit", 1.1);
+    await progressBar("bypassing firewall", 1.4);
+    await progressBar("spawning proxies", 0.9);
+    line(" ");
+
+    SFX.blip();
+    const targetIp   = randIp();
+    const targetPort = rndInt(1024, 65535);
+    await typewriter(`>> цель найдена: ${targetIp}:${targetPort}`, 20, 'yellow');
+
+    for (let i = 0; i < 5; i++) {
+      const ip  = randIp();
+      const row = line(el(`   ↳ probe ${ip} ... `, 'dim'));
+      await sleep(140 + Math.random() * 350);
+      row.append(el('ответ получен', ''));
+      SFX.blip();
+    }
+    line(" ");
+
+    const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789@#$%&*";
+    for (let i = 0; i < 18; i++) {
+      const guess = Array.from({ length: 12 },
+        () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+      const status = i < 16 ? '…' : (i === 16 ? 'совпадение' : 'OK');
+      line(el('[brute] ', 'dim'), guess + '  ', el(status, 'yellow'));
+      SFX.brute();
+      await sleep(30 + Math.random() * 95);
+    }
+    line(" ");
+
+    await progressBar("обход шифрования", 1.7);
+    await progressBar("извлечение ключей", 1.4);
+    await progressBar("чтение логов", 1.2);
+    line(" ");
+
+    await typewriter(">> dump /var/secrets :", 11);
+    for (let i = 0; i < 8; i++) {
+      line(el(`${randHex(8)}  ${randHex(16)}  ${randHex(24)}`, 'dim'));
+      SFX.click();
+      await sleep(55 + Math.random() * 100);
+    }
+    line(" ");
+
+    await sleep(600);
+    SFX.noise(0.5, 0.06, 1500);
+    SFX.alarm(1.1);
+
+    const banner = document.createElement('pre');
+    banner.className = 'bright';
+    banner.textContent = asciiBox([
+      "СОЕДИНЕНИЕ УСТАНОВЛЕНО",
+      "ДОСТУП РАЗРЕШЁН",
+      "сессия: " + randHex(16)
+    ]);
+    term.appendChild(banner);
+    scrollBottom();
+    line(" ");
+
+    await sleep(1800);
+    SFX.success();
+    SFX.noise(0.3, 0.04, 3000);
+    document.getElementById('big-success').classList.add('show');
+  }
+
+  /* ============ СЦЕНА 2: ДЕПЛОЙ + ВЗЛОМ ЦЕЛИ ============ */
+
+  async function runSecondScene(targetName) {
+    // скрываем старые панели
+    document.getElementById('big-success').classList.remove('show');
+    // чистим терминал для новой сессии
+    term.innerHTML = '';
+    term.classList.add('solid');
+
+    SFX.blip();
+    await typewriter(">> root@ghost:~# ./deploy.sh --target=uploaded", 10, 'dim');
+    await sleep(280);
+    await typewriter(">> загрузка payload... OK", 10);
+
+    await progressBar("исполнение на цели", 1.4);
+    await progressBar("получение shell", 1.1);
+    line(" ");
+
+    await typewriter("[+] shell получен: " + randIp(), 14, 'bright');
+    await typewriter("[+] чтение /etc/passwd", 14, 'dim');
+    await typewriter("[+] чтение ~/Documents", 14, 'dim');
+    await typewriter("[+] чтение ~/Downloads", 14, 'dim');
+    await typewriter("[+] чтение ~/.ssh/id_rsa", 14, 'dim');
+    await typewriter("[+] запрос к БД клиентов...", 14, 'dim');
+    line(" ");
+
+    await progressBar("сбор метаданных", 1.3);
+    await progressBar("деанонимизация", 1.4);
+    line(" ");
+
+    await typewriter(">> формирование профиля цели...", 15, 'yellow');
+    for (let i = 0; i < 6; i++) {
+      line(el(`   ${randHex(8)}  ${randHex(12)}  ${randHex(20)}`, 'dim'));
+      SFX.click();
+      await sleep(50 + Math.random() * 90);
+    }
+    line(" ");
+
+    await sleep(700);
+    SFX.alarm(0.9);
+    SFX.noise(0.4, 0.06, 1200);
+    await typewriter(">> ПРОФИЛЬ ГОТОВ", 20, 'red');
+    await sleep(500);
+
+    SFX.breach();
+    showHackedPanel(targetName);
+  }
+
+  /* ============ ГЕНЕРАЦИЯ СЛУЧАЙНЫХ ДАННЫХ ============ */
+
+  const DATA_POOL = {
+    cities: ["Москва","Санкт-Петербург","Новосибирск","Екатеринбург","Казань",
+             "Нижний Новгород","Челябинск","Самара","Омск","Ростов-на-Дону",
+             "Уфа","Красноярск","Воронеж","Пермь","Волгоград","Краснодар",
+             "Саратов","Тюмень","Тольятти","Ижевск"],
+    jobs:   ["Инженер","Программист","Менеджер","Врач","Учитель","Дизайнер",
+             "Бухгалтер","Юрист","Водитель","Повар","Электрик","Сантехник",
+             "Архитектор","Аналитик","Продюсер","Журналист","Маркетолог","Логист"],
+    maritalM: ["Холост","Женат","В разводе"],
+    maritalF: ["Не замужем","Замужем","В разводе"],
+    emailDomains: ["mail.ru","yandex.ru","gmail.com","inbox.ru","list.ru","bk.ru"]
+  };
+
+  const TRANSLIT = {
+    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z',
+    'и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r',
+    'с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh',
+    'щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
+  };
+
+  function translit(str) {
+    return str.toLowerCase().split('').map(ch => TRANSLIT[ch] ?? ch).join('');
+  }
+
+  function guessGender(name) {
+    const parts = name.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    for (const p of parts) {
+      if (/(ова|ева|ёва|ина|ына|ская|цкая|ая)$/.test(p)) return 'f';
+      if (/(ов|ев|ёв|ин|ын|ский|цкий|ый|ой)$/.test(p)) return 'm';
+    }
+    return Math.random() < 0.5 ? 'm' : 'f';
+  }
+
+  function makeEmail(name) {
+    const parts = name.trim().split(/\s+/).map(translit).filter(Boolean);
+    const base = parts.slice(0, 2).join('.') || 'user';
+    const num = rndInt(10, 999);
+    const domain = pick(DATA_POOL.emailDomains);
+    return `${base}${num}@${domain}`;
+  }
+
+  function makePhone() {
+    return `+7 (${rndInt(900,999)}) ${rndInt(100,999)}-${rndInt(10,99)}-${rndInt(10,99)}`;
+  }
+
+  function pluralAge(n) {
+    const n10 = n % 10, n100 = n % 100;
+    if (n10 === 1 && n100 !== 11) return 'год';
+    if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) return 'года';
+    return 'лет';
+  }
+
+  function makeFakePassword() {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#";
+    return Array.from({length: 9}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+  }
+
+  function generateFakeData(name) {
+    const gender = guessGender(name);
+    const age = rndInt(18, 68);
+    const income = rndInt(30, 250) * 1000;
+    return [
+      ['Город',            pick(DATA_POOL.cities)],
+      ['Возраст',          `${age} ${pluralAge(age)}`],
+      ['Пол',              gender === 'f' ? 'Женский' : 'Мужской'],
+      ['Email',            makeEmail(name)],
+      ['Телефон',          makePhone()],
+      ['IP-адрес',         randIp()],
+      ['Работа',           pick(DATA_POOL.jobs)],
+      ['Семейное',         pick(gender === 'f' ? DATA_POOL.maritalF : DATA_POOL.maritalM)],
+      ['Доход',            `${income.toLocaleString('ru-RU')} ₽/мес`],
+      ['Пароль',           makeFakePassword()]
+    ];
+  }
+
+  function showHackedPanel(name) {
+    document.getElementById('hacked-name').textContent = name;
+    const table = document.getElementById('hacked-table');
+    table.innerHTML = '';
+    for (const [k, v] of generateFakeData(name)) {
+      const row = document.createElement('div');
+      row.className = 'hacked-row';
+      const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k;
+      const vv = document.createElement('span'); vv.className = 'v'; vv.textContent = v;
+      row.append(kk, vv);
+      table.appendChild(row);
+    }
+    document.getElementById('hacked-panel').classList.add('show');
+  }
+
+  /* ============ СВОЙ КОД ============ */
+
+  const customCodeBtn = document.getElementById('custom-code-btn');
+  const pwdModal      = document.getElementById('pwd-modal');
+  const pwdBox        = document.getElementById('pwd-box');
+  const pwdInput      = document.getElementById('pwd-input');
+  const codeView      = document.getElementById('code-view');
+  const codeOutput    = document.getElementById('code-output');
+  const uploadBtn     = document.getElementById('upload-btn');
+  const nameModal     = document.getElementById('name-modal');
+  const nameInput     = document.getElementById('name-input');
+  const PASSWORD = '6767';
+
+  customCodeBtn.addEventListener('click', () => {
+    if (!SFX.ctx) SFX.init(); else SFX.resume();
+    pwdModal.classList.add('show');
+    pwdInput.value = '';
+    setTimeout(() => pwdInput.focus(), 60);
+    SFX.blip();
+  });
+
+  pwdInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); checkPassword(); }
+  });
+
+  async function checkPassword() {
+    if (pwdInput.value === PASSWORD) {
+      pwdModal.classList.remove('show');
+      SFX.complete();
+      await sleep(250);
+      showCodeView();
+    } else {
+      SFX.error();
+      pwdBox.classList.add('shake');
+      await sleep(450);
+      location.reload();
+    }
+  }
+
+  const FAKE_CODE =
+`#!/usr/bin/env python3
+# custom_payload.py — author: <hidden>
+# module: ghost.core v2.7
+
+import os, sys
+from ghost.core import probe, inject, exec_payload
+
+TARGETS = ["10.0.0.1", "10.0.0.2", "10.0.0.3"]
+PAYLOAD = "0x4a3f...7e91"
+
+def scan_ports(ip):
+    """scan all 65535 ports"""
+    open_ports = []
+    for p in range(1, 65536):
+        if probe(ip, p, timeout=0.3):
+            open_ports.append(p)
+    return open_ports
+
+def deploy(ip):
+    print(f"[*] target: {ip}")
+    ports = scan_ports(ip)
+    print(f"[+] found: {len(ports)} open")
+    for p in ports:
+        if inject(ip, p, PAYLOAD):
+            return True
+    return False
+
+if __name__ == "__main__":
+    for t in TARGETS:
+        if deploy(t):
+            print(f"[!] {t} -> DEPLOYED")
+`;
+
+  async function showCodeView() {
+    codeView.classList.add('show');
+    codeOutput.textContent = '';
+    uploadBtn.classList.remove('show');
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'ЗАГРУЗИТЬ';
+    uploadBtn.style.borderColor = '#ff5566';
+    uploadBtn.style.color = '#ff5566';
+    uploadBtn.style.textShadow = '0 0 12px #ff5566';
+    uploadBtn.style.boxShadow = '0 0 20px rgba(255, 80, 100, 0.45), inset 0 0 15px rgba(255, 80, 100, 0.15)';
+
+    for (const ch of FAKE_CODE) {
+      codeOutput.textContent += ch;
+      codeOutput.scrollTop = codeOutput.scrollHeight;
+      if (ch !== ' ' && ch !== '\n' && Math.random() < 0.35) SFX.click();
+      await sleep(ch === '\n' ? 26 : 7);
+    }
+
+    await sleep(200);
+    SFX.complete();
+    uploadBtn.classList.add('show');
+  }
+
+  /* ---- ЗАГРУЗИТЬ → окно с именем ---- */
+
+  uploadBtn.addEventListener('click', async () => {
+    if (uploadBtn.disabled) return;
+    uploadBtn.disabled = true;
+    SFX.blip();
+    uploadBtn.textContent = 'ЗАГРУЗКА...';
+    await sleep(1400);
+    SFX.success();
+    uploadBtn.textContent = 'ГОТОВО ✓';
+    uploadBtn.style.borderColor = '#00ff88';
+    uploadBtn.style.color = '#00ff88';
+    uploadBtn.style.textShadow = '0 0 12px #00ff88';
+    uploadBtn.style.boxShadow = '0 0 30px rgba(0, 255, 120, 0.6), inset 0 0 18px rgba(0, 255, 120, 0.2)';
+    await sleep(700);
+
+    // скрываем редактор и показываем окно с именем
+    codeView.classList.remove('show');
+    nameModal.classList.add('show');
+    nameInput.value = '';
+    setTimeout(() => nameInput.focus(), 80);
+    SFX.blip();
+  });
+
+  nameInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const raw = nameInput.value.trim();
+      const targetName = raw || 'Неизвестный Объект';
+      nameModal.classList.remove('show');
+      SFX.complete();
+      await sleep(250);
+      runSecondScene(targetName).catch(err => console.error(err));
+    }
+  });
+
+  /* ============ СТАРТ ============ */
+
+  const startScreen = document.getElementById('start');
+  let started = false;
+
+  startScreen.addEventListener('click', async () => {
+    if (started) return;
+    started = true;
+    if (!SFX.ctx) SFX.init(); else SFX.resume();
+    startScreen.classList.add('hide');
+    setTimeout(() => startScreen.remove(), 500);
+    SFX.blip();
+    await sleep(200);
+    run().catch(err => console.error(err));
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (document.activeElement === pwdInput || document.activeElement === nameInput) return;
+    if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
+      location.reload();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
